@@ -7,7 +7,8 @@ class Lectura {
   final String plataforma;
   final String capituloActual;
   final String link;
-  final int frecuenciaDias; // cada cuántos días se actualiza
+  final int frecuenciaDias;
+  final bool esAdulto;
   final DateTime actualizadoEn;
 
   Lectura({
@@ -18,6 +19,7 @@ class Lectura {
     required this.capituloActual,
     required this.link,
     required this.frecuenciaDias,
+    required this.esAdulto,
     required this.actualizadoEn,
   });
 
@@ -31,6 +33,7 @@ class Lectura {
       capituloActual: data['capituloActual'] ?? '',
       link: data['link'] ?? '',
       frecuenciaDias: data['frecuenciaDias'] ?? 7,
+      esAdulto: data['esAdulto'] ?? false,
       actualizadoEn: (data['actualizadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -43,6 +46,7 @@ class Lectura {
       'capituloActual': capituloActual,
       'link': link,
       'frecuenciaDias': frecuenciaDias,
+      'esAdulto': esAdulto,
       'actualizadoEn': FieldValue.serverTimestamp(),
     };
   }

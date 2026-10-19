@@ -50,13 +50,16 @@ class BibliotecaScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
+          final lecturas = docs
+              .map((d) => Lectura.fromDoc(d))
+              .where((l) => !l.esAdulto)
+              .toList();
+          if (lecturas.isEmpty) {
             return const Center(
               child: Text('Aún no agregas ninguna lectura.\nToca el botón + para empezar.',
                   textAlign: TextAlign.center),
             );
           }
-          final lecturas = docs.map((d) => Lectura.fromDoc(d)).toList();
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: lecturas.length,

@@ -33,7 +33,7 @@ class NotificationService {
     await _plugin.zonedSchedule(
       id,
       'Hilectio',
-      '¿Ya salió capítulo nuevo de "$titulo"? Toca para revisar.',
+      'Puede que ya haya salido capítulo nuevo de "$titulo". Dale un vistazo.',
       tz.TZDateTime.from(fechaNotif, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(

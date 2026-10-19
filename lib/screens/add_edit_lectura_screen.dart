@@ -6,7 +6,7 @@ import '../models/lectura.dart';
 import '../services/notification_service.dart';
 
 class AddEditLecturaScreen extends StatefulWidget {
-  final Lectura? lectura; // null = crear nueva, no-null = editar
+  final Lectura? lectura;
 
   const AddEditLecturaScreen({super.key, this.lectura});
 
@@ -22,6 +22,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
   late TextEditingController _linkCtrl;
   late TextEditingController _frecuenciaCtrl;
   String _tipo = 'Manhwa';
+  bool _esAdulto = false;
   bool _loading = false;
 
   @override
@@ -33,7 +34,10 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     _capituloCtrl = TextEditingController(text: l?.capituloActual ?? '');
     _linkCtrl = TextEditingController(text: l?.link ?? '');
     _frecuenciaCtrl = TextEditingController(text: (l?.frecuenciaDias ?? 7).toString());
-    if (l != null) _tipo = l.tipo;
+    if (l != null) {
+      _tipo = l.tipo;
+      _esAdulto = l.esAdulto;
+    }
   }
 
   Future<void> _guardar() async {
@@ -53,6 +57,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       'capituloActual': _capituloCtrl.text.trim(),
       'link': _linkCtrl.text.trim(),
       'frecuenciaDias': int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
+      'esAdulto': _esAdulto,
       'actualizadoEn': FieldValue.serverTimestamp(),
     };
 
@@ -143,7 +148,15 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                   ),
                   keyboardType: TextInputType.number,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Contenido +18'),
+                  subtitle: const Text('Se oculta en Biblioteca y solo se ve en la Bóveda'),
+                  value: _esAdulto,
+                  onChanged: (v) => setState(() => _esAdulto = v),
+                ),
+                const SizedBox(height: 14),
                 FilledButton(
                   onPressed: _loading ? null : _guardar,
                   child: _loading
