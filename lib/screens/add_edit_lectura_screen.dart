@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/lectura.dart';
+import '../services/notification_service.dart';
 
 class AddEditLecturaScreen extends StatefulWidget {
   final Lectura? lectura; // null = crear nueva, no-null = editar
@@ -55,11 +57,22 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     };
 
     try {
+      String id;
       if (widget.lectura == null) {
-        await coleccion.add(datos);
+        final doc = await coleccion.add(datos);
+        id = doc.id;
       } else {
-        await coleccion.doc(widget.lectura!.id).update(datos);
+        id = widget.lectura!.id;
+        await coleccion.doc(id).update(datos);
       }
+
+      await NotificationService().programarRecordatorio(
+        lecturaId: id,
+        titulo: _tituloCtrl.text.trim(),
+        fechaBase: DateTime.now(),
+        frecuenciaDias: int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
+      );
+
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -113,6 +126,8 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                 TextFormField(
                   controller: _capituloCtrl,
                   decoration: const InputDecoration(labelText: 'Capítulo donde te quedaste'),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 ),
                 const SizedBox(height: 14),
                 TextFormField(

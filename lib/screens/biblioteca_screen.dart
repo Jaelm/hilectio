@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lectura.dart';
 import 'add_edit_lectura_screen.dart';
+import '../services/notification_service.dart';
 
 class BibliotecaScreen extends StatelessWidget {
   const BibliotecaScreen({super.key});
@@ -27,6 +28,7 @@ class BibliotecaScreen extends StatelessWidget {
         .collection('lecturas')
         .doc(id)
         .delete();
+    await NotificationService().cancelar(id);
   }
 
   @override
