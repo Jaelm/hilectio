@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "709448525301",
+    "project_id": "hilectio",
+    "storage_bucket": "hilectio.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:709448525301:android:7b22d82145dabe06bbecbc",
+        "android_client_info": {
+          "package_name": "com.example.hilectio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCntn9YF6RnnjVp-a5MCQtnud5t8StAjVs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
