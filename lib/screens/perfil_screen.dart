@@ -3,9 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
+import 'admin_propuestas_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
+
+  static const _correoAdmin = 'jhormanskic98@gmail.com';
 
   @override
   Widget build(BuildContext context) {
@@ -14,6 +17,7 @@ class PerfilScreen extends StatelessWidget {
     final uid = user!.uid;
     final userDocStream =
         FirebaseFirestore.instance.collection('usuarios').doc(uid).snapshots();
+    final esAdmin = correo == _correoAdmin;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil')),
@@ -83,6 +87,18 @@ class PerfilScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const BovedaScreen()),
             ),
           ),
+          if (esAdmin) ...[
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings_outlined),
+              title: const Text('Propuestas pendientes'),
+              subtitle: const Text('Revisar datos de obras enviados por usuarios'),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminPropuestasScreen()),
+              ),
+            ),
+          ],
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/lectura.dart';
 import '../services/notification_service.dart';
 import '../services/tokens_service.dart';
+import '../services/obra_service.dart';
 
 class AddEditLecturaScreen extends StatefulWidget {
   final Lectura? lectura;
@@ -22,6 +23,9 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
   late TextEditingController _capituloCtrl;
   late TextEditingController _linkCtrl;
   late TextEditingController _frecuenciaCtrl;
+  final Map<String, TextEditingController> _obraCtrls = {
+    for (final campo in camposObra.keys) campo: TextEditingController(),
+  };
   String _tipo = 'Manhwa';
   bool _esAdulto = false;
   bool _loading = false;
@@ -79,7 +83,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
         frecuenciaDias: int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
       );
 
-          final estadoRacha = await TokensService().verificarRacha();
+      final estadoRacha = await TokensService().verificarRacha();
       bool salvarRacha = false;
 
       if (estadoRacha['estado'] == 'rota' && estadoRacha['puedeSalvar'] == true && mounted) {
@@ -124,6 +128,34 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
           SnackBar(duration: const Duration(seconds: 2), content: Text(mensaje)),
         );
         await Future.delayed(const Duration(milliseconds: 900));
+      }
+
+      final valoresObra = {
+        for (final entry in _obraCtrls.entries) entry.key: entry.value.text,
+      };
+      if (valoresObra.values.any((v) => v.trim().isNotEmpty)) {
+        final resumenObra = await ObraService().enviarDatosObra(
+          tituloLectura: _tituloCtrl.text.trim(),
+          valores: valoresObra,
+        );
+        if (mounted) {
+          final partes = <String>[];
+          if ((resumenObra['autoValidadas'] ?? 0) > 0) {
+            partes.add('${resumenObra['autoValidadas']} confirmado(s)');
+          }
+          if ((resumenObra['pendientes'] ?? 0) > 0) {
+            partes.add('${resumenObra['pendientes']} en revisión');
+          }
+          if ((resumenObra['noCoinciden'] ?? 0) > 0) {
+            partes.add('${resumenObra['noCoinciden']} no coincidió(eron)');
+          }
+          if (partes.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Datos de la obra: ${partes.join(', ')}')),
+            );
+            await Future.delayed(const Duration(milliseconds: 900));
+          }
+        }
       }
 
       if (mounted) Navigator.pop(context);
@@ -217,6 +249,21 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                   subtitle: const Text('Se oculta en Biblioteca y solo se ve en la Bóveda'),
                   value: _esAdulto,
                   onChanged: (v) => setState(() => _esAdulto = v),
+                ),
+                const SizedBox(height: 10),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text('Datos de la obra (opcional)'),
+                  subtitle: const Text('Ayuda a otros usuarios aportando info de esta obra'),
+                  children: camposObra.entries.map((e) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: TextFormField(
+                        controller: _obraCtrls[e.key],
+                        decoration: InputDecoration(labelText: e.value),
+                      ),
+                    );
+                  }).toList(),
                 ),
                 const SizedBox(height: 14),
                 FilledButton(
