@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Lectura {
   final String id;
   final String titulo;
-  final String tipo; // Manhwa, Manga, Manhua, Libro
+  final String tipo; // Manhwa, Manga, Manhua, Novela, Libro, Otro
   final String plataforma;
   final String capituloActual;
   final String link;

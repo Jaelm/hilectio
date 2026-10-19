@@ -23,12 +23,25 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
   late TextEditingController _capituloCtrl;
   late TextEditingController _linkCtrl;
   late TextEditingController _frecuenciaCtrl;
+  late FocusNode _tituloFocus;
   final Map<String, TextEditingController> _obraCtrls = {
     for (final campo in camposObra.keys) campo: TextEditingController(),
   };
   String _tipo = 'Manhwa';
   bool _esAdulto = false;
   bool _loading = false;
+  bool _cargandoCamposObra = false;
+
+  /// Campos de la obra que ya están validados (campo -> valor) y por lo
+  /// tanto se muestran bloqueados en vez de como un formulario editable.
+  Map<String, dynamic> _camposBloqueados = {};
+
+  /// Fecha elegida con el selector para cada campo de tipo fecha
+  /// (ej. 'fechaPublicacion' -> DateTime). Es la fuente real que se envía;
+  /// el texto del controller solo es para mostrarla formateada.
+  final Map<String, DateTime?> _fechasSeleccionadas = {
+    for (final campo in camposDeFecha) campo: null,
+  };
 
   @override
   void initState() {
@@ -39,9 +52,62 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     _capituloCtrl = TextEditingController(text: l?.capituloActual ?? '');
     _linkCtrl = TextEditingController(text: l?.link ?? '');
     _frecuenciaCtrl = TextEditingController(text: (l?.frecuenciaDias ?? 7).toString());
+    _tituloFocus = FocusNode();
+    _tituloFocus.addListener(() {
+      if (!_tituloFocus.hasFocus) {
+        _cargarCamposBloqueados();
+      }
+    });
     if (l != null) {
       _tipo = l.tipo;
       _esAdulto = l.esAdulto;
+      _cargarCamposBloqueados();
+    }
+  }
+
+  @override
+  void dispose() {
+    _tituloFocus.dispose();
+    super.dispose();
+  }
+
+  /// Consulta si esta obra ya tiene campos validados y, de ser así, bloquea
+  /// esos campos en el formulario (ya no se pueden volver a llenar/premiar).
+  Future<void> _cargarCamposBloqueados() async {
+    final titulo = _tituloCtrl.text.trim();
+    if (titulo.isEmpty) return;
+    setState(() => _cargandoCamposObra = true);
+    try {
+      final campos = await ObraService().obtenerCamposValidados(titulo);
+      if (!mounted) return;
+      setState(() {
+        _camposBloqueados = campos;
+        for (final entry in campos.entries) {
+          final ctrl = _obraCtrls[entry.key];
+          if (ctrl != null) {
+            ctrl.text = formatearValorCampo(entry.value, campo: entry.key);
+          }
+        }
+      });
+    } finally {
+      if (mounted) setState(() => _cargandoCamposObra = false);
+    }
+  }
+
+  Future<void> _elegirFecha(String campo) async {
+    final ahora = DateTime.now();
+    final seleccionada = await showDatePicker(
+      context: context,
+      initialDate: _fechasSeleccionadas[campo] ?? DateTime(ahora.year - 5),
+      firstDate: DateTime(1950),
+      lastDate: ahora,
+      helpText: etiquetaCampo(campo, _tipo),
+    );
+    if (seleccionada != null) {
+      setState(() {
+        _fechasSeleccionadas[campo] = seleccionada;
+        _obraCtrls[campo]!.text = formatearFechaISOaDisplay(formatearFechaADisplayISO(seleccionada));
+      });
     }
   }
 
@@ -130,8 +196,16 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
         await Future.delayed(const Duration(milliseconds: 900));
       }
 
+      // Solo se envían los campos que el usuario pudo editar: los que ya
+      // estaban validados quedan bloqueados y no se vuelven a proponer.
       final valoresObra = {
-        for (final entry in _obraCtrls.entries) entry.key: entry.value.text,
+        for (final entry in _obraCtrls.entries)
+          if (!_camposBloqueados.containsKey(entry.key))
+            entry.key: camposDeFecha.contains(entry.key)
+                ? (_fechasSeleccionadas[entry.key] == null
+                    ? ''
+                    : formatearFechaADisplayISO(_fechasSeleccionadas[entry.key]!))
+                : entry.value.text,
       };
       if (valoresObra.values.any((v) => v.trim().isNotEmpty)) {
         final resumenObra = await ObraService().enviarDatosObra(
@@ -189,6 +263,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
               children: [
                 TextFormField(
                   controller: _tituloCtrl,
+                  focusNode: _tituloFocus,
                   decoration: const InputDecoration(labelText: 'Título'),
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Escribe un título' : null,
                 ),
@@ -200,6 +275,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                     DropdownMenuItem(value: 'Manhwa', child: Text('Manhwa')),
                     DropdownMenuItem(value: 'Manga', child: Text('Manga')),
                     DropdownMenuItem(value: 'Manhua', child: Text('Manhua')),
+                    DropdownMenuItem(value: 'Novela', child: Text('Novela')),
                     DropdownMenuItem(value: 'Libro', child: Text('Libro')),
                     DropdownMenuItem(value: 'Otro', child: Text('Otro')),
                   ],
@@ -257,13 +333,33 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                 ExpansionTile(
                   tilePadding: EdgeInsets.zero,
                   title: const Text('Datos de la obra (opcional)'),
-                  subtitle: const Text('Ayuda a otros usuarios aportando info de esta obra'),
-                  children: camposObra.entries.map((e) {
+                  subtitle: Text(
+                    _cargandoCamposObra
+                        ? 'Buscando si esta obra ya tiene datos registrados…'
+                        : 'Ayuda a otros usuarios aportando info de esta obra',
+                  ),
+                  children: camposObra.keys.map((campo) {
+                    final bloqueado = _camposBloqueados.containsKey(campo);
+                    final esFecha = camposDeFecha.contains(campo);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: TextFormField(
-                        controller: _obraCtrls[e.key],
-                        decoration: InputDecoration(labelText: e.value),
+                        controller: _obraCtrls[campo],
+                        enabled: !bloqueado,
+                        readOnly: esFecha,
+                        onTap: (esFecha && !bloqueado) ? () => _elegirFecha(campo) : null,
+                        decoration: InputDecoration(
+                          labelText: etiquetaCampo(campo, _tipo),
+                          helperText: campo == 'genero' && !bloqueado
+                              ? 'Separa varios géneros con coma (ej. Acción, Fantasía)'
+                              : esFecha && !bloqueado
+                                  ? 'Toca para elegir día, mes y año'
+                                  : (bloqueado ? 'Ya validado, no se puede modificar' : null),
+                          suffixIcon: bloqueado
+                              ? const Icon(Icons.lock_outline, size: 18)
+                              : (esFecha ? const Icon(Icons.calendar_today, size: 18) : null),
+                          filled: bloqueado,
+                        ),
                       ),
                     );
                   }).toList(),

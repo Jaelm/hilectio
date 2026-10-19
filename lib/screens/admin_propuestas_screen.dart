@@ -80,8 +80,10 @@ class _AdminPropuestasScreenState extends State<AdminPropuestasScreen> {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(
-                        title: Text(obraId),
-                        subtitle: Text('$nombreCampo: "${data['valor']}"'),
+                        title: Text(data['tituloObra'] ?? obraId),
+                        subtitle: Text(
+                          '$nombreCampo: "${formatearValorCampo(data['valor'], campo: data['campo'])}"',
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

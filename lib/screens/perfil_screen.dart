@@ -34,24 +34,60 @@ class PerfilScreen extends StatelessWidget {
             builder: (context, snap) {
               final docs = snap.data ?? [];
               if (docs.isEmpty) return const SizedBox.shrink();
-              final aprobadas = docs.where((d) => d.data()['estado'] == 'aprobada').length;
-              final rechazadas = docs.where((d) => d.data()['estado'] == 'rechazada').length;
-              final partes = <String>[];
-              if (aprobadas > 0) partes.add('$aprobadas aprobada(s)');
-              if (rechazadas > 0) partes.add('$rechazadas rechazada(s)');
               return Card(
                 color: Colors.blue.shade50,
                 margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: const Icon(Icons.notifications_active, color: Colors.blue),
-                  title: const Text('Novedades en tus propuestas de datos'),
-                  subtitle: Text(partes.join(', ')),
-                  trailing: TextButton(
-                    onPressed: () => ObraService().marcarPropuestasComoVistas(
-                      uid,
-                      docs.map((d) => d.id).toList(),
-                    ),
-                    child: const Text('Visto'),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 4, 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.notifications_active, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Novedades en tus propuestas de datos',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => ObraService().marcarPropuestasComoVistas(
+                              uid,
+                              docs.map((d) => d.id).toList(),
+                            ),
+                            child: const Text('Marcar todo visto'),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 4),
+                      ...docs.map((d) {
+                        final data = d.data();
+                        final aprobada = data['estado'] == 'aprobada';
+                        final nombreCampo = camposObra[data['campo']] ?? data['campo'];
+                        final titulo = data['tituloObra'] ?? data['obraId'] ?? '';
+                        final tokens = (data['tokens'] as num?)?.toInt() ?? 0;
+                        return ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            aprobada ? Icons.check_circle : Icons.cancel,
+                            color: aprobada ? Colors.green : Colors.red,
+                          ),
+                          title: Text('$titulo · $nombreCampo'),
+                          subtitle: Text(
+                            '"${formatearValorCampo(data['valor'], campo: data['campo'])}"'
+                            '${aprobada && tokens > 0 ? ' · +$tokens tokens' : ''}',
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () =>
+                                ObraService().marcarPropuestasComoVistas(uid, [d.id]),
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                 ),
               );
