@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/lectura.dart';
 import '../services/notification_service.dart';
+import '../services/tokens_service.dart';
 
 class AddEditLecturaScreen extends StatefulWidget {
   final Lectura? lectura;
@@ -71,12 +72,29 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
         await coleccion.doc(id).update(datos);
       }
 
-      await NotificationService().programarRecordatorio(
+            await NotificationService().programarRecordatorio(
         lecturaId: id,
         titulo: _tituloCtrl.text.trim(),
         fechaBase: DateTime.now(),
         frecuenciaDias: int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
       );
+
+      final resultado = await TokensService().registrarActividadDiaria();
+
+      if (mounted && resultado['cambio'] == true) {
+        final recompensa = resultado['recompensa'];
+        final racha = resultado['racha'];
+        final rachaRota = resultado['rachaRota'] == true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 2),
+            content: Text(rachaRota
+                ? 'Se reinició tu racha. +$recompensa tokens (día 1)'
+                : '🔥 Racha de $racha días. +$recompensa tokens'),
+          ),
+        );
+        await Future.delayed(const Duration(milliseconds: 900));
+      }
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
