@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lectura.dart';
 import 'add_edit_lectura_screen.dart';
+import 'resumenes_screen.dart';
 import '../services/notification_service.dart';
 
 class BibliotecaScreen extends StatefulWidget {
@@ -120,6 +121,17 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                               );
                             }
                             if (v == 'eliminar') _eliminar(uid, l.id);
+                            if (v == 'resumenes') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ResumenesScreen(
+                                    tituloObra: l.titulo,
+                                    capituloSugerido: l.capituloActual,
+                                  ),
+                                ),
+                              );
+                            }
                             if (estadosLectura.containsKey(v) && v != l.estado) {
                               _cambiarEstado(uid, l.id, v);
                             }
@@ -127,6 +139,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                           itemBuilder: (_) => [
                             const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
                             const PopupMenuItem(value: 'editar', child: Text('Editar')),
+                            const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
                             const PopupMenuDivider(),
                             ...estadosLectura.entries
                                 .where((e) => e.key != l.estado)

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
 import 'admin_propuestas_screen.dart';
+import 'admin_resumenes_screen.dart';
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart';
 
@@ -239,6 +240,15 @@ class PerfilScreen extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AdminPropuestasScreen()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined),
+              title: const Text('Resúmenes reportados'),
+              subtitle: const Text('Revisar resúmenes marcados por el filtro automático'),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminResumenesScreen()),
               ),
             ),
           ],

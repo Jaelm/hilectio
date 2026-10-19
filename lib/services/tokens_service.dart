@@ -20,6 +20,19 @@ class TokensService {
     }, SetOptions(merge: true));
   }
 
+  /// Resta tokens del saldo de cualquier usuario (ej. penalización por un
+  /// resumen que viola las reglas). Nunca deja el saldo en negativo.
+  Future<void> quitarTokensAUsuario({required String uid, required int cantidad}) async {
+    if (cantidad <= 0) return;
+    final ref = FirebaseFirestore.instance.collection('usuarios').doc(uid);
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final actuales = (snap.data()?['tokens'] as num?)?.toInt() ?? 0;
+      final nuevos = actuales - cantidad;
+      tx.set(ref, {'tokens': nuevos < 0 ? 0 : nuevos}, SetOptions(merge: true));
+    });
+  }
+
   /// Lee el estado actual sin modificar nada. Úsalo antes de guardar una lectura
   /// para saber si hay que preguntarle al usuario si quiere salvar la racha.
   Future<Map<String, dynamic>> verificarRacha() async {
