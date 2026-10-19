@@ -28,6 +28,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     for (final campo in camposObra.keys) campo: TextEditingController(),
   };
   String _tipo = 'Manhwa';
+  String _estadoLectura = 'leyendo';
   bool _esAdulto = false;
   bool _loading = false;
   bool _cargandoCamposObra = false;
@@ -61,6 +62,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     if (l != null) {
       _tipo = l.tipo;
       _esAdulto = l.esAdulto;
+      _estadoLectura = l.estado;
       _cargarCamposBloqueados();
     }
   }
@@ -129,6 +131,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       'link': _linkCtrl.text.trim(),
       'frecuenciaDias': int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
       'esAdulto': _esAdulto,
+      'estado': _estadoLectura,
       'actualizadoEn': FieldValue.serverTimestamp(),
     };
 
@@ -320,6 +323,15 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                     if (n == null || n <= 0) return 'Debe ser un número mayor a 0';
                     return null;
                   },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: _estadoLectura,
+                  decoration: const InputDecoration(labelText: 'Marcador de lectura'),
+                  items: estadosLectura.entries
+                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _estadoLectura = v ?? 'leyendo'),
                 ),
                 const SizedBox(height: 10),
                 SwitchListTile(

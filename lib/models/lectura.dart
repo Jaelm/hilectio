@@ -1,5 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Marcadores de progreso que el usuario le puede poner a una lectura.
+const Map<String, String> estadosLectura = {
+  'leyendo': 'Leyendo',
+  'pendiente': 'Pendiente',
+  'abandonado': 'Abandonado',
+  'terminado': 'Terminado',
+};
+
 class Lectura {
   final String id;
   final String titulo;
@@ -9,6 +17,7 @@ class Lectura {
   final String link;
   final int frecuenciaDias;
   final bool esAdulto;
+  final String estado; // leyendo, pendiente, abandonado, terminado (ver estadosLectura)
   final DateTime actualizadoEn;
 
   Lectura({
@@ -20,6 +29,7 @@ class Lectura {
     required this.link,
     required this.frecuenciaDias,
     required this.esAdulto,
+    required this.estado,
     required this.actualizadoEn,
   });
 
@@ -34,6 +44,7 @@ class Lectura {
       link: data['link'] ?? '',
       frecuenciaDias: data['frecuenciaDias'] ?? 7,
       esAdulto: data['esAdulto'] ?? false,
+      estado: estadosLectura.containsKey(data['estado']) ? data['estado'] : 'leyendo',
       actualizadoEn: (data['actualizadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -47,6 +58,7 @@ class Lectura {
       'link': link,
       'frecuenciaDias': frecuenciaDias,
       'esAdulto': esAdulto,
+      'estado': estado,
       'actualizadoEn': FieldValue.serverTimestamp(),
     };
   }

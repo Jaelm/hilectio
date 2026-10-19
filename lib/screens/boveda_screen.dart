@@ -194,8 +194,15 @@ class _IngresarPinViewState extends State<_IngresarPinView> {
   }
 }
 
-class _ListaBoveda extends StatelessWidget {
+class _ListaBoveda extends StatefulWidget {
   const _ListaBoveda();
+
+  @override
+  State<_ListaBoveda> createState() => _ListaBovedaState();
+}
+
+class _ListaBovedaState extends State<_ListaBoveda> {
+  String _filtro = 'leyendo';
 
   Future<void> _abrirLink(BuildContext context, String link) async {
     if (link.trim().isEmpty) return;
@@ -209,6 +216,15 @@ class _ListaBoveda extends StatelessWidget {
     }
   }
 
+  Future<void> _cambiarEstado(String uid, String id, String nuevoEstado) async {
+    await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(uid)
+        .collection('lecturas')
+        .doc(id)
+        .update({'estado': nuevoEstado});
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -220,63 +236,102 @@ class _ListaBoveda extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Bóveda +18')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: stream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final docs = snapshot.data?.docs ?? [];
-          final lecturas = docs
-              .map((d) => Lectura.fromDoc(d))
-              .where((l) => l.esAdulto)
-              .toList();
-          if (lecturas.isEmpty) {
-            return const Center(
-              child: Text('No tienes lecturas +18 guardadas.', textAlign: TextAlign.center),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: lecturas.length,
-            itemBuilder: (context, i) {
-              final l = lecturas[i];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  title: Text(l.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('${l.tipo} · Cap. ${l.capituloActual} · ${l.plataforma}'),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (v) async {
-                      if (v == 'abrir') _abrirLink(context, l.link);
-                      if (v == 'editar') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
-                        );
-                      }
-                      if (v == 'eliminar') {
-                        await FirebaseFirestore.instance
-                            .collection('usuarios')
-                            .doc(uid)
-                            .collection('lecturas')
-                            .doc(l.id)
-                            .delete();
-                        await NotificationService().cancelar(l.id);
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
-                      PopupMenuItem(value: 'editar', child: Text('Editar')),
-                      PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-                    ],
-                  ),
-                  onTap: () => _abrirLink(context, l.link),
-                ),
-              );
-            },
-          );
-        },
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: estadosLectura.entries.map((e) {
+                  final seleccionado = _filtro == e.key;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(e.value),
+                      selected: seleccionado,
+                      onSelected: (_) => setState(() => _filtro = e.key),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: stream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snapshot.data?.docs ?? [];
+                final lecturas = docs
+                    .map((d) => Lectura.fromDoc(d))
+                    .where((l) => l.esAdulto && l.estado == _filtro)
+                    .toList();
+                if (lecturas.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No tienes lecturas +18 marcadas como "${estadosLectura[_filtro]}".',
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: lecturas.length,
+                  itemBuilder: (context, i) {
+                    final l = lecturas[i];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        title: Text(l.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('${l.tipo} · Cap. ${l.capituloActual} · ${l.plataforma}'),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (v) async {
+                            if (v == 'abrir') _abrirLink(context, l.link);
+                            if (v == 'editar') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
+                              );
+                            }
+                            if (v == 'eliminar') {
+                              await FirebaseFirestore.instance
+                                  .collection('usuarios')
+                                  .doc(uid)
+                                  .collection('lecturas')
+                                  .doc(l.id)
+                                  .delete();
+                              await NotificationService().cancelar(l.id);
+                            }
+                            if (estadosLectura.containsKey(v) && v != l.estado) {
+                              _cambiarEstado(uid, l.id, v);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
+                            const PopupMenuItem(value: 'editar', child: Text('Editar')),
+                            const PopupMenuDivider(),
+                            ...estadosLectura.entries
+                                .where((e) => e.key != l.estado)
+                                .map((e) => PopupMenuItem(
+                                      value: e.key,
+                                      child: Text('Marcar como ${e.value}'),
+                                    )),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+                          ],
+                        ),
+                        onTap: () => _abrirLink(context, l.link),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

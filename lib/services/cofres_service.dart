@@ -1,9 +1,25 @@
 import 'dart:math';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 enum TipoCofre { normal, raro, legendario }
 enum Pool { titulos, fotos }
+
+/// Las "fotos de perfil" que salen de los cofres son nombres simbólicos
+/// (no imágenes reales), así que se representan con un ícono.
+const Map<String, IconData> iconosFoto = {
+  'Hoja': Icons.eco,
+  'Pluma': Icons.edit_outlined,
+  'Taza': Icons.local_cafe,
+  'Luna': Icons.nightlight_round,
+  'Estrella': Icons.star,
+  'Fuego': Icons.local_fire_department,
+  'Rayo': Icons.bolt,
+  'Corona': Icons.workspace_premium,
+  'Dragón': Icons.whatshot,
+  'Fénix': Icons.auto_awesome,
+};
 
 class CofresService {
   static const Map<TipoCofre, int> costos = {

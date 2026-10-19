@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_shell.dart';
+import 'screens/verify_email_screen.dart';
 import 'services/notification_service.dart';
 
 void main() async {
@@ -38,18 +39,25 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // userChanges() (a diferencia de authStateChanges()) también emite
+    // cuando se llama a user.reload(), lo que permite que esta pantalla
+    // avance sola apenas el usuario confirma su correo.
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (snapshot.hasData) {
-          return const HomeShell();
+        final user = snapshot.data;
+        if (user == null) {
+          return const LoginScreen();
         }
-        return const LoginScreen();
+        if (!user.emailVerified) {
+          return const VerifyEmailScreen();
+        }
+        return const HomeShell();
       },
     );
   }

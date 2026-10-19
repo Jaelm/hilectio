@@ -5,6 +5,7 @@ import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
 import 'admin_propuestas_screen.dart';
 import '../services/obra_service.dart';
+import '../services/cofres_service.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
@@ -25,9 +26,86 @@ class PerfilScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: Text(correo),
+          StreamBuilder<DocumentSnapshot>(
+            stream: userDocStream,
+            builder: (context, snapshot) {
+              final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+              final fotoSeleccionada = data['fotoSeleccionada'] as String?;
+              final tituloSeleccionado = data['tituloSeleccionado'] as String?;
+              final fotosObtenidas = List<String>.from(data['fotosObtenidas'] ?? []);
+              final titulosObtenidos = List<String>.from(data['titulosObtenidos'] ?? []);
+              final miembroDesde = user.metadata.creationTime;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => _elegirFoto(context, uid, fotosObtenidas),
+                            child: CircleAvatar(
+                              radius: 30,
+                              backgroundColor: Colors.deepOrange.shade50,
+                              child: Icon(
+                                iconosFoto[fotoSeleccionada] ?? Icons.person,
+                                size: 30,
+                                color: Colors.deepOrange,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(correo, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                if (tituloSeleccionado != null)
+                                  Text(
+                                    tituloSeleccionado,
+                                    style: TextStyle(
+                                      color: Colors.deepOrange.shade400,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                if (miembroDesde != null)
+                                  Text(
+                                    'Miembro desde ${_formatoFecha(miembroDesde)}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _elegirFoto(context, uid, fotosObtenidas),
+                              icon: const Icon(Icons.face_retouching_natural, size: 18),
+                              label: const Text('Foto'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _elegirTitulo(context, uid, titulosObtenidos),
+                              icon: const Icon(Icons.military_tech_outlined, size: 18),
+                              label: const Text('Título'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
           StreamBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
             stream: ObraService().misPropuestasSinVer(uid),
@@ -174,4 +252,85 @@ class PerfilScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _elegirFoto(BuildContext context, String uid, List<String> fotos) async {
+  if (fotos.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Todavía no tienes fotos de perfil. Consíguelas abriendo cofres.')),
+    );
+    return;
+  }
+  final elegida = await showModalBottomSheet<String>(
+    context: context,
+    builder: (_) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          children: fotos.map((f) {
+            return InkWell(
+              onTap: () => Navigator.pop(context, f),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.deepOrange.shade50,
+                    child: Icon(iconosFoto[f] ?? Icons.person, color: Colors.deepOrange),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(f, style: const TextStyle(fontSize: 10), textAlign: TextAlign.center),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    ),
+  );
+  if (elegida != null) {
+    await FirebaseFirestore.instance.collection('usuarios').doc(uid).set(
+      {'fotoSeleccionada': elegida},
+      SetOptions(merge: true),
+    );
+  }
+}
+
+Future<void> _elegirTitulo(BuildContext context, String uid, List<String> titulos) async {
+  if (titulos.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Todavía no tienes títulos. Consíguelos abriendo cofres.')),
+    );
+    return;
+  }
+  final elegido = await showModalBottomSheet<String>(
+    context: context,
+    builder: (_) => SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: titulos.map((t) {
+          return ListTile(
+            leading: const Icon(Icons.military_tech_outlined),
+            title: Text(t),
+            onTap: () => Navigator.pop(context, t),
+          );
+        }).toList(),
+      ),
+    ),
+  );
+  if (elegido != null) {
+    await FirebaseFirestore.instance.collection('usuarios').doc(uid).set(
+      {'tituloSeleccionado': elegido},
+      SetOptions(merge: true),
+    );
+  }
+}
+
+String _formatoFecha(DateTime d) {
+  const meses = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+  ];
+  return '${d.day} ${meses[d.month - 1]} ${d.year}';
 }
