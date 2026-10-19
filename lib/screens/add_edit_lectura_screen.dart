@@ -126,6 +126,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                 TextFormField(
                   controller: _plataformaCtrl,
                   decoration: const InputDecoration(labelText: 'Plataforma (ej. MangaDex)'),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Escribe la plataforma' : null,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -133,12 +134,19 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                   decoration: const InputDecoration(labelText: 'Capítulo donde te quedaste'),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Escribe el capítulo' : null,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _linkCtrl,
                   decoration: const InputDecoration(labelText: 'Link del último capítulo'),
                   keyboardType: TextInputType.url,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Pega el link del capítulo';
+                    final uri = Uri.tryParse(v.trim());
+                    if (uri == null || !uri.hasScheme) return 'El link no parece válido';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -147,6 +155,12 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                     labelText: 'Cada cuántos días se actualiza',
                   ),
                   keyboardType: TextInputType.number,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Escribe cada cuántos días';
+                    final n = int.tryParse(v.trim());
+                    if (n == null || n <= 0) return 'Debe ser un número mayor a 0';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 10),
                 SwitchListTile(
