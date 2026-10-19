@@ -11,6 +11,15 @@ class TokensService {
 
   DateTime _soloFecha(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  /// Suma tokens al saldo de cualquier usuario (no necesariamente el actual).
+  /// Se usa, por ejemplo, cuando el admin aprueba una propuesta de datos de obra.
+  Future<void> otorgarTokensAUsuario({required String uid, required int cantidad}) async {
+    if (cantidad <= 0) return;
+    await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
+      'tokens': FieldValue.increment(cantidad),
+    }, SetOptions(merge: true));
+  }
+
   /// Lee el estado actual sin modificar nada. Úsalo antes de guardar una lectura
   /// para saber si hay que preguntarle al usuario si quiere salvar la racha.
   Future<Map<String, dynamic>> verificarRacha() async {

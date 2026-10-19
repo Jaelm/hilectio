@@ -149,6 +149,9 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
           if ((resumenObra['noCoinciden'] ?? 0) > 0) {
             partes.add('${resumenObra['noCoinciden']} no coincidió(eron)');
           }
+          if ((resumenObra['tokensGanados'] ?? 0) > 0) {
+            partes.add('+${resumenObra['tokensGanados']} tokens');
+          }
           if (partes.isNotEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Datos de la obra: ${partes.join(', ')}')),

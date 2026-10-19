@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
 import 'admin_propuestas_screen.dart';
+import '../services/obra_service.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
@@ -27,6 +28,34 @@ class PerfilScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.person_outline),
             title: Text(correo),
+          ),
+          StreamBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
+            stream: ObraService().misPropuestasSinVer(uid),
+            builder: (context, snap) {
+              final docs = snap.data ?? [];
+              if (docs.isEmpty) return const SizedBox.shrink();
+              final aprobadas = docs.where((d) => d.data()['estado'] == 'aprobada').length;
+              final rechazadas = docs.where((d) => d.data()['estado'] == 'rechazada').length;
+              final partes = <String>[];
+              if (aprobadas > 0) partes.add('$aprobadas aprobada(s)');
+              if (rechazadas > 0) partes.add('$rechazadas rechazada(s)');
+              return Card(
+                color: Colors.blue.shade50,
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  leading: const Icon(Icons.notifications_active, color: Colors.blue),
+                  title: const Text('Novedades en tus propuestas de datos'),
+                  subtitle: Text(partes.join(', ')),
+                  trailing: TextButton(
+                    onPressed: () => ObraService().marcarPropuestasComoVistas(
+                      uid,
+                      docs.map((d) => d.id).toList(),
+                    ),
+                    child: const Text('Visto'),
+                  ),
+                ),
+              );
+            },
           ),
           const Divider(),
           StreamBuilder<DocumentSnapshot>(
