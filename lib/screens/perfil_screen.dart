@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'boveda_screen.dart';
+import 'cuestionario_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
@@ -61,6 +62,16 @@ class PerfilScreen extends StatelessWidget {
                 ),
               );
             },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.quiz_outlined),
+            title: const Text('Cuestionario semanal'),
+            subtitle: const Text('Responde y gana 20 tokens'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CuestionarioScreen()),
+            ),
           ),
           const Divider(),
           ListTile(

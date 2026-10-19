@@ -72,26 +72,56 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
         await coleccion.doc(id).update(datos);
       }
 
-            await NotificationService().programarRecordatorio(
+      await NotificationService().programarRecordatorio(
         lecturaId: id,
         titulo: _tituloCtrl.text.trim(),
         fechaBase: DateTime.now(),
         frecuenciaDias: int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
       );
 
-      final resultado = await TokensService().registrarActividadDiaria();
+          final estadoRacha = await TokensService().verificarRacha();
+      bool salvarRacha = false;
+
+      if (estadoRacha['estado'] == 'rota' && estadoRacha['puedeSalvar'] == true && mounted) {
+        salvarRacha = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('¡Se te pasó un día!'),
+                content: const Text(
+                  'Puedes pagar 40 tokens para salvar tu racha, o dejar que se reinicie a día 1.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Reiniciar'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Salvar (40 tokens)'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+      }
+
+      final resultado = await TokensService().confirmarActividad(salvarRacha: salvarRacha);
 
       if (mounted && resultado['cambio'] == true) {
         final recompensa = resultado['recompensa'];
         final racha = resultado['racha'];
         final rachaRota = resultado['rachaRota'] == true;
+        final rachaSalvada = resultado['rachaSalvada'] == true;
+        String mensaje;
+        if (rachaSalvada) {
+          mensaje = '¡Racha salvada! 🔥 Racha de $racha días. +$recompensa tokens (-40 por salvarla)';
+        } else if (rachaRota) {
+          mensaje = 'Se reinició tu racha. +$recompensa tokens (día 1)';
+        } else {
+          mensaje = '🔥 Racha de $racha días. +$recompensa tokens';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            duration: const Duration(seconds: 2),
-            content: Text(rachaRota
-                ? 'Se reinició tu racha. +$recompensa tokens (día 1)'
-                : '🔥 Racha de $racha días. +$recompensa tokens'),
-          ),
+          SnackBar(duration: const Duration(seconds: 2), content: Text(mensaje)),
         );
         await Future.delayed(const Duration(milliseconds: 900));
       }
