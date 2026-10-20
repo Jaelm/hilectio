@@ -229,6 +229,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
   }
 
   Future<void> _compartirEstado(BuildContext context, Lectura l) async {
+    // ignore: deprecated_member_use
     await Share.share(
       'Estoy ${estadosLectura[l.estado]?.toLowerCase() ?? 'leyendo'} '
       '"${l.titulo}" (cap. ${l.capituloActual}) en Hilectio 📖',

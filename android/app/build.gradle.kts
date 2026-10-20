@@ -9,7 +9,11 @@ plugins {
 
 android {
     namespace = "com.example.hilectio"
-    compileSdk = flutter.compileSdkVersion
+    // share_plus (y varias de sus dependencias de androidx) exige compilar
+    // contra la API 34 o superior; se fija explícito en vez de usar
+    // flutter.compileSdkVersion porque esta instalación de Flutter está
+    // resolviendo la 33 por defecto.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -221,6 +221,7 @@ class _ResumenCardState extends State<_ResumenCard> {
     final texto = widget.contieneSpoiler && !_revelado
         ? '¡Hay un resumen nuevo de "${widget.tituloObra}" (cap. ${widget.capitulo}) en Hilectio! 📖 (contiene spoiler, cuidado)'
         : 'Resumen de "${widget.tituloObra}" (cap. ${widget.capitulo}) desde Hilectio:\n\n"${widget.texto}"';
+    // ignore: deprecated_member_use
     await Share.share(texto);
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
