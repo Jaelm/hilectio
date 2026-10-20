@@ -162,6 +162,19 @@ class ObraService {
   CollectionReference<Map<String, dynamic>> _misPropuestas(String uid) =>
       FirebaseFirestore.instance.collection('usuarios').doc(uid).collection('misPropuestas');
 
+  /// Registra (o solo "toca") la obra en la colección pública `obras`, aunque
+  /// el usuario no haya llenado ningún dato extra (género, protagonista...).
+  /// Sin esto, una obra solo aparecía en `obras` -y por lo tanto en
+  /// Descubrir- si alguien llenaba esos campos; ahora toda lectura agregada
+  /// queda indexada para que se pueda encontrar por título.
+  Future<void> registrarObra(String tituloLectura) async {
+    final obraId = normalizarTitulo(tituloLectura);
+    await _obras.doc(obraId).set(
+      {'tituloOriginal': tituloLectura.trim()},
+      SetOptions(merge: true),
+    );
+  }
+
   /// Campos de esta obra ya validados por el admin (campo -> valor).
   /// Úsalo para bloquear en el formulario los campos que ya tienen dato correcto.
   Future<Map<String, dynamic>> obtenerCamposValidados(String tituloLectura) async {
@@ -343,12 +356,16 @@ class ObraService {
       },
     }, SetOptions(merge: true));
 
-    await propuestaRef.update({'estado': 'aprobada'});
+    // Igual que en rechazarPropuesta: la propuesta y la copia del usuario
+    // cambian juntas en un batch, para que nunca queden desincronizadas.
+    final batchPrincipal = FirebaseFirestore.instance.batch();
+    batchPrincipal.update(propuestaRef, {'estado': 'aprobada'});
     if (uid != null) {
-      await _misPropuestas(uid).doc(propuestaId).update({'estado': 'aprobada'});
-      if (tokens > 0) {
-        await TokensService().otorgarTokensAUsuario(uid: uid, cantidad: tokens);
-      }
+      batchPrincipal.update(_misPropuestas(uid).doc(propuestaId), {'estado': 'aprobada'});
+    }
+    await batchPrincipal.commit();
+    if (uid != null && tokens > 0) {
+      await TokensService().otorgarTokensAUsuario(uid: uid, cantidad: tokens);
     }
 
     final otras = await obraRef
@@ -357,18 +374,27 @@ class ObraService {
         .where('estado', isEqualTo: 'pendiente')
         .get();
 
-    for (final doc in otras.docs) {
-      final otroData = doc.data();
-      final otroValor = otroData['valor'];
-      final otroUid = otroData['uid'] as String?;
-      final otroTokens = (otroData['tokens'] as num?)?.toInt() ?? 0;
-      final coincide = _coincideValor(otroValor, valor);
-      final nuevoEstado = coincide ? 'aprobada' : 'rechazada';
+    if (otras.docs.isNotEmpty) {
+      final batchOtras = FirebaseFirestore.instance.batch();
+      for (final doc in otras.docs) {
+        final otroData = doc.data();
+        final otroUid = otroData['uid'] as String?;
+        final coincide = _coincideValor(otroData['valor'], valor);
+        final nuevoEstado = coincide ? 'aprobada' : 'rechazada';
 
-      await doc.reference.update({'estado': nuevoEstado});
-      if (otroUid != null) {
-        await _misPropuestas(otroUid).doc(doc.id).update({'estado': nuevoEstado});
-        if (coincide && otroTokens > 0) {
+        batchOtras.update(doc.reference, {'estado': nuevoEstado});
+        if (otroUid != null) {
+          batchOtras.update(_misPropuestas(otroUid).doc(doc.id), {'estado': nuevoEstado});
+        }
+      }
+      await batchOtras.commit();
+
+      for (final doc in otras.docs) {
+        final otroData = doc.data();
+        final otroUid = otroData['uid'] as String?;
+        final otroTokens = (otroData['tokens'] as num?)?.toInt() ?? 0;
+        final coincide = _coincideValor(otroData['valor'], valor);
+        if (coincide && otroUid != null && otroTokens > 0) {
           await TokensService().otorgarTokensAUsuario(uid: otroUid, cantidad: otroTokens);
         }
       }
@@ -383,10 +409,16 @@ class ObraService {
     final snap = await propuestaRef.get();
     final uid = snap.data()?['uid'] as String?;
 
-    await propuestaRef.update({'estado': 'rechazada'});
+    // Un solo batch: o cambian los dos documentos (la propuesta y la copia
+    // del usuario) o no cambia ninguno. Antes, si el segundo write fallaba
+    // (por ejemplo por permisos), la propuesta quedaba "rechazada" pero el
+    // aviso del usuario se quedaba pegado en "pendiente" para siempre.
+    final batch = FirebaseFirestore.instance.batch();
+    batch.update(propuestaRef, {'estado': 'rechazada'});
     if (uid != null) {
-      await _misPropuestas(uid).doc(propuestaId).update({'estado': 'rechazada'});
+      batch.update(_misPropuestas(uid).doc(propuestaId), {'estado': 'rechazada'});
     }
+    await batch.commit();
   }
 
   /// Propuestas del usuario cuyo resultado (aprobada/rechazada) aún no ha visto.

@@ -45,18 +45,34 @@ class _AdminPropuestasScreenState extends State<AdminPropuestasScreen> {
   Future<void> _aprobar(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
     final data = doc.data();
     final obraId = doc.reference.parent.parent!.id;
-    await ObraService().aprobarPropuesta(
-      obraId: obraId,
-      propuestaId: doc.id,
-      campo: data['campo'],
-      valor: data['valor'],
-    );
+    try {
+      await ObraService().aprobarPropuesta(
+        obraId: obraId,
+        propuestaId: doc.id,
+        campo: data['campo'],
+        valor: data['valor'],
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo aprobar: $e')),
+        );
+      }
+    }
     _cargar();
   }
 
   Future<void> _rechazar(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
     final obraId = doc.reference.parent.parent!.id;
-    await ObraService().rechazarPropuesta(obraId: obraId, propuestaId: doc.id);
+    try {
+      await ObraService().rechazarPropuesta(obraId: obraId, propuestaId: doc.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo rechazar: $e')),
+        );
+      }
+    }
     _cargar();
   }
 

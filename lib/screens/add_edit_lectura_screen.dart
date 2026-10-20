@@ -227,6 +227,13 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                     : formatearFechaADisplayISO(_fechasSeleccionadas[entry.key]!))
                 : entry.value.text,
       };
+      // Registra la obra en el catálogo público (pestaña Descubrir) salvo
+      // que sea +18: esas se mantienen fuera de lo buscable/público, igual
+      // que ya pasa con la bóveda.
+      if (!_esAdulto) {
+        await ObraService().registrarObra(_tituloCtrl.text.trim());
+      }
+
       if (valoresObra.values.any((v) => v.trim().isNotEmpty)) {
         final resumenObra = await ObraService().enviarDatosObra(
           tituloLectura: _tituloCtrl.text.trim(),

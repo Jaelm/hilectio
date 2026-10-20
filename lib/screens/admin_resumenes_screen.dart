@@ -45,17 +45,33 @@ class _AdminResumenesScreenState extends State<AdminResumenesScreen> {
 
   Future<void> _aprobar(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
     final obraId = doc.reference.parent.parent!.id;
-    await _servicio.aprobarResumen(obraId: obraId, resumenId: doc.id);
+    try {
+      await _servicio.aprobarResumen(obraId: obraId, resumenId: doc.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo aprobar: $e')),
+        );
+      }
+    }
     _cargar();
   }
 
   Future<void> _rechazar(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
     final obraId = doc.reference.parent.parent!.id;
-    await _servicio.rechazarResumen(obraId: obraId, resumenId: doc.id);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Rechazado. Se penalizó al autor con -$penalizacionViolacion tokens.')),
-      );
+    try {
+      await _servicio.rechazarResumen(obraId: obraId, resumenId: doc.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rechazado. Se penalizó al autor con -$penalizacionViolacion tokens.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo rechazar: $e')),
+        );
+      }
     }
     _cargar();
   }

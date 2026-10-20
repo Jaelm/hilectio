@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
 import 'admin_propuestas_screen.dart';
 import 'admin_resumenes_screen.dart';
+import '../models/lectura.dart' show estadosLectura;
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart';
 import '../services/logros_service.dart';
 import 'elegir_apodo_screen.dart';
+
+const Map<String, Color> _coloresEstado = {
+  'leyendo': Colors.deepOrange,
+  'pendiente': Colors.amber,
+  'abandonado': Colors.grey,
+  'terminado': Colors.green,
+};
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -274,6 +283,107 @@ class _PerfilScreenState extends State<PerfilScreen> {
                           Text('$tokens',
                               style: const TextStyle(fontWeight: FontWeight.bold)),
                           const Text('Tokens', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('usuarios')
+                .doc(uid)
+                .collection('lecturas')
+                .snapshots(),
+            builder: (context, snap) {
+              final docs = snap.data?.docs ?? [];
+              if (docs.isEmpty) return const SizedBox.shrink();
+
+              final conteos = <String, int>{for (final e in estadosLectura.keys) e: 0};
+              for (final d in docs) {
+                final estado = d.data()['estado'] as String?;
+                if (estado != null && conteos.containsKey(estado)) {
+                  conteos[estado] = conteos[estado]! + 1;
+                }
+              }
+              final total = docs.length;
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Tus lecturas',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 130,
+                            width: 130,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                PieChart(
+                                  PieChartData(
+                                    sectionsSpace: 2,
+                                    centerSpaceRadius: 34,
+                                    sections: [
+                                      for (final entry in conteos.entries)
+                                        if (entry.value > 0)
+                                          PieChartSectionData(
+                                            value: entry.value.toDouble(),
+                                            color: _coloresEstado[entry.key],
+                                            title: '',
+                                            radius: 28,
+                                          ),
+                                    ],
+                                  ),
+                                ),
+                                Text('$total',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold, fontSize: 18)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (final entry in conteos.entries)
+                                  if (entry.value > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 3),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: _coloresEstado[entry.key],
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              '${estadosLectura[entry.key]}: ${entry.value}',
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ],
