@@ -43,10 +43,20 @@ class ApodoService {
       }
 
       tx.set(claveRef, {'uid': user.uid});
-      tx.set(usuarioRef, {
+
+      final datosUsuario = <String, dynamic>{
         'apodo': texto,
         'apodoClave': clave,
-      }, SetOptions(merge: true));
+      };
+      // Regalo de bienvenida: solo la primera vez que alguien elige su
+      // apodo (justo después de registrarse) y solo si todavía no tiene
+      // tokens asignados, para no volver a dárselo si solo está cambiando
+      // de apodo más adelante.
+      final esPrimerApodo = apodoAnterior == null;
+      if (esPrimerApodo && usuarioSnap.data()?['tokens'] == null) {
+        datosUsuario['tokens'] = 100;
+      }
+      tx.set(usuarioRef, datosUsuario, SetOptions(merge: true));
     });
   }
 }

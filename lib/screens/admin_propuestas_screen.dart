@@ -14,6 +14,7 @@ class AdminPropuestasScreen extends StatefulWidget {
 
 class _AdminPropuestasScreenState extends State<AdminPropuestasScreen> {
   bool _cargando = true;
+  String? _error;
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _pendientes = [];
 
   @override
@@ -23,12 +24,22 @@ class _AdminPropuestasScreenState extends State<AdminPropuestasScreen> {
   }
 
   Future<void> _cargar() async {
-    setState(() => _cargando = true);
-    final docs = await ObraService().listarPendientes();
     setState(() {
-      _pendientes = docs;
-      _cargando = false;
+      _cargando = true;
+      _error = null;
     });
+    try {
+      final docs = await ObraService().listarPendientes();
+      setState(() {
+        _pendientes = docs;
+        _cargando = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _cargando = false;
+      });
+    }
   }
 
   Future<void> _aprobar(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
@@ -67,7 +78,33 @@ class _AdminPropuestasScreenState extends State<AdminPropuestasScreen> {
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
-          : _pendientes.isEmpty
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 40),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No se pudieron cargar las propuestas pendientes.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(onPressed: _cargar, child: const Text('Reintentar')),
+                      ],
+                    ),
+                  ),
+                )
+              : _pendientes.isEmpty
               ? const Center(child: Text('No hay propuestas pendientes.'))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
