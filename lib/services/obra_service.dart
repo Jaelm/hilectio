@@ -12,6 +12,7 @@ const Map<String, String> camposObra = {
   'antagonista': 'Antagonista principal',
   'estado': 'Estado (En curso / Finalizado)',
   'fechaPublicacion': 'Fecha de publicación',
+  'capituloTotal': 'Último capítulo/tomo publicado',
 };
 
 /// Campos cuyo valor es una fecha (día/mes/año) elegida con un selector,
@@ -42,6 +43,7 @@ const Map<String, int> precioCampoObra = {
   'antagonista': 3,
   'estado': 1,
   'fechaPublicacion': 1,
+  'capituloTotal': 1,
 };
 
 /// Porcentaje de esos tokens que se otorga cuando el campo ya estaba validado
@@ -89,6 +91,8 @@ String etiquetaCampo(String campo, String tipo) {
       return 'Estado (En curso / Finalizado)';
     case 'fechaPublicacion':
       return 'Fecha de publicación $sufijo';
+    case 'capituloTotal':
+      return 'Último capítulo/tomo publicado $sufijo';
     default:
       return camposObra[campo] ?? campo;
   }
@@ -135,6 +139,23 @@ dynamic _parsearValorCampo(String campo, String textoCrudo) {
         .toList();
   }
   return textoCrudo.trim();
+}
+
+/// Si [url] es un link para compartir de Google Drive (de la forma
+/// ".../file/d/ID/view..." o "...?id=ID..."), lo convierte al formato que sí
+/// se puede mostrar como imagen dentro de la app. Si no reconoce el patrón,
+/// devuelve la url tal cual (para admitir imágenes de otros sitios).
+String convertirLinkDriveADirecto(String url) {
+  final texto = url.trim();
+  final porCarpeta = RegExp(r'/d/([a-zA-Z0-9_-]+)').firstMatch(texto);
+  if (porCarpeta != null) {
+    return 'https://lh3.googleusercontent.com/d/${porCarpeta.group(1)}';
+  }
+  final porParametro = RegExp(r'[?&]id=([a-zA-Z0-9_-]+)').firstMatch(texto);
+  if (porParametro != null) {
+    return 'https://lh3.googleusercontent.com/d/${porParametro.group(1)}';
+  }
+  return texto;
 }
 
 String normalizarTitulo(String titulo) {
@@ -194,6 +215,18 @@ class ObraService {
       },
       SetOptions(merge: true),
     );
+  }
+
+  /// Guarda/actualiza la portada de la obra (solo admin, ver reglas de
+  /// Firestore). Acepta un link de Drive tal cual lo da el botón "Compartir"
+  /// y lo convierte internamente al formato que sí se puede mostrar.
+  Future<void> actualizarPortada({
+    required String tituloLectura,
+    required String urlImagen,
+  }) async {
+    final obraId = normalizarTitulo(tituloLectura);
+    final urlFinal = convertirLinkDriveADirecto(urlImagen);
+    await _obras.doc(obraId).set({'imagenUrl': urlFinal}, SetOptions(merge: true));
   }
 
   /// Campos de esta obra ya validados por el admin (campo -> valor).

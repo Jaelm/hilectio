@@ -8,6 +8,7 @@ import 'add_edit_lectura_screen.dart';
 import 'resumenes_screen.dart';
 import '../services/notification_service.dart';
 import '../services/logros_service.dart';
+import '../services/obra_service.dart' show normalizarTitulo, formatearValorCampo;
 
 class BibliotecaScreen extends StatefulWidget {
   const BibliotecaScreen({super.key});
@@ -64,6 +65,141 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
     }
   }
 
+  Widget _placeholderPortada() => Container(
+        decoration: BoxDecoration(
+          color: Colors.deepOrange.shade50,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.menu_book_outlined, color: Colors.deepOrange, size: 32),
+      );
+
+  Widget _tarjetaLectura(BuildContext context, String uid, Lectura l) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('obras').doc(normalizarTitulo(l.titulo)).get(),
+      builder: (context, obraSnap) {
+        final obraData = (obraSnap.data?.data()) ?? <String, dynamic>{};
+        final imagenUrl = obraData['imagenUrl'] as String?;
+        final campos = Map<String, dynamic>.from(obraData['campos'] ?? {});
+        final totalCampo = campos['capituloTotal'];
+        final total = totalCampo is Map ? formatearValorCampo(totalCampo['valor']) : null;
+        final etiquetaProgreso =
+            (total != null && total.isNotEmpty) ? '${l.capituloActual} / $total' : 'Cap. ${l.capituloActual}';
+
+        return GestureDetector(
+          onTap: () => _abrirLink(context, l.link),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: (imagenUrl != null && imagenUrl.isNotEmpty)
+                          ? Image.network(
+                              imagenUrl,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) =>
+                                  progress == null ? child : _placeholderPortada(),
+                              errorBuilder: (_, __, ___) => _placeholderPortada(),
+                            )
+                          : _placeholderPortada(),
+                    ),
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: Material(
+                        color: Colors.black38,
+                        shape: const CircleBorder(),
+                        child: PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
+                          onSelected: (v) {
+                            if (v == 'abrir') _abrirLink(context, l.link);
+                            if (v == 'editar') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
+                              );
+                            }
+                            if (v == 'eliminar') _eliminar(uid, l.id);
+                            if (v == 'compartir') _compartirEstado(context, l);
+                            if (v == 'resumenes') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ResumenesScreen(
+                                    tituloObra: l.titulo,
+                                    capituloSugerido: l.capituloActual,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (estadosLectura.containsKey(v) && v != l.estado) {
+                              _cambiarEstado(uid, l.id, v);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
+                            const PopupMenuItem(value: 'editar', child: Text('Editar')),
+                            const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
+                            const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),
+                            const PopupMenuDivider(),
+                            ...estadosLectura.entries
+                                .where((e) => e.key != l.estado)
+                                .map((e) => PopupMenuItem(
+                                      value: e.key,
+                                      child: Text('Marcar como ${e.value}'),
+                                    )),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.55),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(10),
+                            bottomRight: Radius.circular(10),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          etiquetaProgreso,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l.titulo,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -117,62 +253,16 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                     ),
                   );
                 }
-                return ListView.builder(
+                return GridView.builder(
                   padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 18,
+                    childAspectRatio: 0.52,
+                  ),
                   itemCount: lecturas.length,
-                  itemBuilder: (context, i) {
-                    final l = lecturas[i];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        title: Text(l.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('${l.tipo} · Cap. ${l.capituloActual} · ${l.plataforma}'),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (v) {
-                            if (v == 'abrir') _abrirLink(context, l.link);
-                            if (v == 'editar') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
-                              );
-                            }
-                            if (v == 'eliminar') _eliminar(uid, l.id);
-                            if (v == 'compartir') _compartirEstado(context, l);
-                            if (v == 'resumenes') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ResumenesScreen(
-                                    tituloObra: l.titulo,
-                                    capituloSugerido: l.capituloActual,
-                                  ),
-                                ),
-                              );
-                            }
-                            if (estadosLectura.containsKey(v) && v != l.estado) {
-                              _cambiarEstado(uid, l.id, v);
-                            }
-                          },
-                          itemBuilder: (_) => [
-                            const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
-                            const PopupMenuItem(value: 'editar', child: Text('Editar')),
-                            const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
-                            const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),
-                            const PopupMenuDivider(),
-                            ...estadosLectura.entries
-                                .where((e) => e.key != l.estado)
-                                .map((e) => PopupMenuItem(
-                                      value: e.key,
-                                      child: Text('Marcar como ${e.value}'),
-                                    )),
-                            const PopupMenuDivider(),
-                            const PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-                          ],
-                        ),
-                        onTap: () => _abrirLink(context, l.link),
-                      ),
-                    );
-                  },
+                  itemBuilder: (context, i) => _tarjetaLectura(context, uid, lecturas[i]),
                 );
               },
             ),
