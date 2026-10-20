@@ -231,7 +231,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       // que sea +18: esas se mantienen fuera de lo buscable/público, igual
       // que ya pasa con la bóveda.
       if (!_esAdulto) {
-        await ObraService().registrarObra(_tituloCtrl.text.trim());
+        await ObraService().registrarObra(_tituloCtrl.text.trim(), tipo: _tipo);
       }
 
       if (valoresObra.values.any((v) => v.trim().isNotEmpty)) {
@@ -307,14 +307,9 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                 DropdownButtonFormField<String>(
                   initialValue: _tipo,
                   decoration: const InputDecoration(labelText: 'Tipo'),
-                  items: const [
-                    DropdownMenuItem(value: 'Manhwa', child: Text('Manhwa')),
-                    DropdownMenuItem(value: 'Manga', child: Text('Manga')),
-                    DropdownMenuItem(value: 'Manhua', child: Text('Manhua')),
-                    DropdownMenuItem(value: 'Novela', child: Text('Novela')),
-                    DropdownMenuItem(value: 'Libro', child: Text('Libro')),
-                    DropdownMenuItem(value: 'Otro', child: Text('Otro')),
-                  ],
+                  items: tiposLectura
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
                   onChanged: (v) => setState(() => _tipo = v ?? 'Manhwa'),
                 ),
                 const SizedBox(height: 14),
@@ -386,6 +381,25 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                   children: camposObra.keys.map((campo) {
                     final bloqueado = _camposBloqueados.containsKey(campo);
                     final esFecha = camposDeFecha.contains(campo);
+                    final opciones = opcionesCampo[campo];
+
+                    if (opciones != null && !bloqueado) {
+                      final ctrl = _obraCtrls[campo]!;
+                      final valorActual = opciones.contains(ctrl.text) ? ctrl.text : null;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: valorActual,
+                          decoration: InputDecoration(labelText: etiquetaCampo(campo, _tipo)),
+                          hint: const Text('Sin especificar'),
+                          items: opciones
+                              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                              .toList(),
+                          onChanged: (v) => setState(() => ctrl.text = v ?? ''),
+                        ),
+                      );
+                    }
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: TextFormField(

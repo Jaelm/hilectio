@@ -21,6 +21,18 @@ const Set<String> camposDeFecha = {'fechaPublicacion'};
 /// Campos que aceptan más de un valor (el usuario los separa por comas).
 const Set<String> camposMultivaluados = {'genero'};
 
+/// Campos de opción cerrada (se eligen de una lista fija en vez de texto
+/// libre), para que después se puedan usar como filtro confiable en
+/// Descubrir sin depender de cómo cada usuario escribió el valor.
+const Map<String, List<String>> opcionesCampo = {
+  'estado': ['En curso', 'Finalizado'],
+};
+
+/// Tipos de lectura disponibles (los mismos que en el formulario de
+/// agregar/editar lectura), usados también para guardar el tipo a nivel de
+/// obra compartida y poder filtrar por él en Descubrir.
+const List<String> tiposLectura = ['Manhwa', 'Manga', 'Manhua', 'Novela', 'Libro', 'Otro'];
+
 /// Tokens que se otorgan por confirmar este campo por primera vez en la plataforma
 /// (cuando nadie más lo había validado todavía para esta obra).
 const Map<String, int> precioCampoObra = {
@@ -167,10 +179,19 @@ class ObraService {
   /// Sin esto, una obra solo aparecía en `obras` -y por lo tanto en
   /// Descubrir- si alguien llenaba esos campos; ahora toda lectura agregada
   /// queda indexada para que se pueda encontrar por título.
-  Future<void> registrarObra(String tituloLectura) async {
+  ///
+  /// [tipo] (Manhwa/Manga/Manhua/Novela/Libro/Otro) también se guarda a nivel
+  /// de obra (no solo en la lectura personal de cada quien) para poder
+  /// filtrar por tipo en Descubrir; el último que guarda "gana" (no pasa por
+  /// el sistema de propuestas/validación porque es una lista cerrada, no un
+  /// dato que valga la pena disputar).
+  Future<void> registrarObra(String tituloLectura, {String? tipo}) async {
     final obraId = normalizarTitulo(tituloLectura);
     await _obras.doc(obraId).set(
-      {'tituloOriginal': tituloLectura.trim()},
+      {
+        'tituloOriginal': tituloLectura.trim(),
+        if (tipo != null) 'tipo': tipo,
+      },
       SetOptions(merge: true),
     );
   }

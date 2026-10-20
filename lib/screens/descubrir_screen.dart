@@ -15,17 +15,58 @@ class DescubrirScreen extends StatefulWidget {
   State<DescubrirScreen> createState() => _DescubrirScreenState();
 }
 
+class _FiltrosObras {
+  String? tipo;
+  String? estado;
+  String autor;
+  String anio;
+
+  _FiltrosObras({this.tipo, this.estado, this.autor = '', this.anio = ''});
+
+  _FiltrosObras copiar() =>
+      _FiltrosObras(tipo: tipo, estado: estado, autor: autor, anio: anio);
+
+  bool get hayFiltrosActivos =>
+      tipo != null || estado != null || autor.trim().isNotEmpty || anio.trim().isNotEmpty;
+
+  int get cantidadActivos => [
+        tipo != null,
+        estado != null,
+        autor.trim().isNotEmpty,
+        anio.trim().isNotEmpty,
+      ].where((e) => e).length;
+}
+
 class _DescubrirScreenState extends State<DescubrirScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs = TabController(length: 2, vsync: this);
   final _busquedaCtrl = TextEditingController();
   String _busqueda = '';
+  _FiltrosObras _filtros = _FiltrosObras();
+
+  @override
+  void initState() {
+    super.initState();
+    // Para que el botón de filtro solo se muestre en la pestaña "Obras".
+    _tabs.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
     _tabs.dispose();
     _busquedaCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _abrirFiltros() async {
+    final resultado = await showModalBottomSheet<_FiltrosObras>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _HojaFiltros(filtrosIniciales: _filtros.copiar()),
+    );
+    if (resultado != null) {
+      setState(() => _filtros = resultado);
+    }
   }
 
   @override
@@ -45,22 +86,40 @@ class _DescubrirScreenState extends State<DescubrirScreen>
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: TextField(
-              controller: _busquedaCtrl,
-              decoration: InputDecoration(
-                hintText: 'Buscar...',
-                prefixIcon: const Icon(Icons.search),
-                isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onChanged: (v) => setState(() => _busqueda = v.trim().toLowerCase()),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _busquedaCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Buscar...',
+                      prefixIcon: const Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onChanged: (v) => setState(() => _busqueda = v.trim().toLowerCase()),
+                  ),
+                ),
+                if (_tabs.index == 0) ...[
+                  const SizedBox(width: 8),
+                  Badge(
+                    isLabelVisible: _filtros.hayFiltrosActivos,
+                    label: Text('${_filtros.cantidadActivos}'),
+                    child: IconButton.filledTonal(
+                      onPressed: _abrirFiltros,
+                      icon: const Icon(Icons.filter_list),
+                      tooltip: 'Filtrar obras',
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Expanded(
             child: TabBarView(
               controller: _tabs,
               children: [
-                _ObrasTab(busqueda: _busqueda),
+                _ObrasTab(busqueda: _busqueda, filtros: _filtros),
                 _UsuariosTab(busqueda: _busqueda),
               ],
             ),
@@ -71,9 +130,103 @@ class _DescubrirScreenState extends State<DescubrirScreen>
   }
 }
 
+class _HojaFiltros extends StatefulWidget {
+  final _FiltrosObras filtrosIniciales;
+  const _HojaFiltros({required this.filtrosIniciales});
+
+  @override
+  State<_HojaFiltros> createState() => _HojaFiltrosState();
+}
+
+class _HojaFiltrosState extends State<_HojaFiltros> {
+  late _FiltrosObras _f = widget.filtrosIniciales.copiar();
+  late final _autorCtrl = TextEditingController(text: _f.autor);
+  late final _anioCtrl = TextEditingController(text: _f.anio);
+
+  @override
+  void dispose() {
+    _autorCtrl.dispose();
+    _anioCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        16 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Text('Filtrar obras', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _f = _FiltrosObras();
+                    _autorCtrl.text = '';
+                    _anioCtrl.text = '';
+                  }),
+                  child: const Text('Limpiar'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _f.tipo,
+              decoration: const InputDecoration(labelText: 'Tipo de lectura'),
+              hint: const Text('Todos'),
+              items: tiposLectura
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                  .toList(),
+              onChanged: (v) => setState(() => _f.tipo = v),
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              initialValue: _f.estado,
+              decoration: const InputDecoration(labelText: 'Estado de la obra'),
+              hint: const Text('Todos'),
+              items: opcionesCampo['estado']!
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (v) => setState(() => _f.estado = v),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _autorCtrl,
+              decoration: const InputDecoration(labelText: 'Autor/Creador'),
+              onChanged: (v) => _f.autor = v,
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _anioCtrl,
+              decoration: const InputDecoration(labelText: 'Año de publicación'),
+              keyboardType: TextInputType.number,
+              onChanged: (v) => _f.anio = v,
+            ),
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, _f),
+              child: const Text('Aplicar filtros'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ObrasTab extends StatelessWidget {
   final String busqueda;
-  const _ObrasTab({required this.busqueda});
+  final _FiltrosObras filtros;
+  const _ObrasTab({required this.busqueda, required this.filtros});
 
   @override
   Widget build(BuildContext context) {
@@ -87,12 +240,51 @@ class _ObrasTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         final docs = snap.data?.docs ?? [];
+        final filtroAutor = filtros.autor.trim().toLowerCase();
+        final filtroAnio = filtros.anio.trim();
+
         final filtradas = docs.where((d) {
-          final titulo = (d.data()['tituloOriginal'] as String? ?? '').toLowerCase();
-          return busqueda.isEmpty || titulo.contains(busqueda);
+          final data = d.data();
+          final titulo = (data['tituloOriginal'] as String? ?? '').toLowerCase();
+          if (busqueda.isNotEmpty && !titulo.contains(busqueda)) return false;
+
+          if (filtros.tipo != null && data['tipo'] != filtros.tipo) return false;
+
+          final campos = Map<String, dynamic>.from(data['campos'] ?? {});
+
+          if (filtros.estado != null) {
+            final estadoValor = campos['estado'] is Map ? campos['estado']['valor'] : null;
+            if (estadoValor != filtros.estado) return false;
+          }
+
+          if (filtroAutor.isNotEmpty) {
+            final autorValor = campos['autor'] is Map ? campos['autor']['valor'] : null;
+            final autorTexto = formatearValorCampo(autorValor).toLowerCase();
+            if (!autorTexto.contains(filtroAutor)) return false;
+          }
+
+          if (filtroAnio.isNotEmpty) {
+            final fechaValor = campos['fechaPublicacion'] is Map
+                ? campos['fechaPublicacion']['valor'] as String?
+                : null;
+            final anioObra = (fechaValor != null && fechaValor.length >= 4)
+                ? fechaValor.substring(0, 4)
+                : null;
+            if (anioObra != filtroAnio) return false;
+          }
+
+          return true;
         }).toList();
+
         if (filtradas.isEmpty) {
-          return const Center(child: Text('No se encontraron obras.'));
+          return Center(
+            child: Text(
+              filtros.hayFiltrosActivos || busqueda.isNotEmpty
+                  ? 'No se encontraron obras con esos filtros.'
+                  : 'No se encontraron obras.',
+              textAlign: TextAlign.center,
+            ),
+          );
         }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -100,19 +292,29 @@ class _ObrasTab extends StatelessWidget {
           itemBuilder: (context, i) {
             final data = filtradas[i].data();
             final titulo = data['tituloOriginal'] as String? ?? filtradas[i].id;
+            final tipo = data['tipo'] as String?;
             final campos = Map<String, dynamic>.from(data['campos'] ?? {});
-            final generoCampo = campos['genero'];
-            final generoTexto = generoCampo is Map
-                ? formatearValorCampo(generoCampo['valor'])
-                : null;
+
+            String? valorCampo(String campo) {
+              final c = campos[campo];
+              if (c is! Map) return null;
+              final texto = formatearValorCampo(c['valor'], campo: campo);
+              return texto.isEmpty ? null : texto;
+            }
+
+            final partesSubtitulo = <String>[
+              if (tipo != null) tipo,
+              if (valorCampo('genero') != null) valorCampo('genero')!,
+              if (valorCampo('autor') != null) 'de ${valorCampo('autor')}',
+              if (valorCampo('estado') != null) valorCampo('estado')!,
+            ];
+
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: ListTile(
                 leading: const Icon(Icons.menu_book_outlined),
                 title: Text(titulo),
-                subtitle: (generoTexto != null && generoTexto.isNotEmpty)
-                    ? Text(generoTexto)
-                    : null,
+                subtitle: partesSubtitulo.isNotEmpty ? Text(partesSubtitulo.join(' · ')) : null,
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(
                   context,
