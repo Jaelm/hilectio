@@ -77,23 +77,36 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
                           : () async {
                               if (textoCtrl.text.trim().isEmpty) return;
                               setModalState(() => enviando = true);
-                              final sospechoso = await _servicio.crearResumen(
-                                tituloObra: widget.tituloObra,
-                                capitulo: capituloCtrl.text,
-                                texto: textoCtrl.text,
-                                contieneSpoiler: contieneSpoiler,
-                              );
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      sospechoso
-                                          ? 'Resumen enviado, pero quedó en revisión por el filtro automático.'
-                                          : '¡Resumen publicado!',
-                                    ),
-                                  ),
+                              try {
+                                final sospechoso = await _servicio.crearResumen(
+                                  tituloObra: widget.tituloObra,
+                                  capitulo: capituloCtrl.text,
+                                  texto: textoCtrl.text,
+                                  contieneSpoiler: contieneSpoiler,
                                 );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        sospechoso
+                                            ? 'Resumen enviado, pero quedó en revisión por el filtro automático.'
+                                            : '¡Resumen publicado!',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                setModalState(() => enviando = false);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        e.toString().replaceFirst('Exception: ', ''),
+                                      ),
+                                    ),
+                                  );
+                                }
                               }
                             },
                       child: enviando

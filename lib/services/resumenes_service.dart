@@ -34,6 +34,17 @@ bool contienePalabraProhibida(String texto) {
   return _palabrasProhibidas.any((p) => t.contains(p));
 }
 
+/// Normaliza el número/nombre de capítulo para usarlo como parte del ID del
+/// documento (evita que "5", " 5 " y "5 " cuenten como capítulos distintos).
+String _normalizarCapitulo(String capitulo) {
+  final normalizado = capitulo
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9áéíóúñ]+'), '_')
+      .replaceAll(RegExp(r'_+'), '_');
+  return normalizado.replaceAll(RegExp(r'^_|_$'), '');
+}
+
 class ResumenesService {
   CollectionReference<Map<String, dynamic>> _resumenes(String obraId) => FirebaseFirestore
       .instance
@@ -44,6 +55,11 @@ class ResumenesService {
   /// Crea un resumen. Si el filtro automático detecta lenguaje prohibido,
   /// queda oculto ('pendiente_revision') hasta que el admin lo revise;
   /// si no, se publica directo.
+  ///
+  /// Solo se permite UN resumen por usuario por capítulo: el ID del
+  /// documento se arma como "{uid}_{capítulo normalizado}", así que un
+  /// segundo intento para el mismo capítulo lanza una excepción en vez de
+  /// crear un duplicado.
   Future<bool> crearResumen({
     required String tituloObra,
     required String capitulo,
@@ -52,9 +68,20 @@ class ResumenesService {
   }) async {
     final obraId = normalizarTitulo(tituloObra);
     final user = FirebaseAuth.instance.currentUser!;
+    final capNormalizado = _normalizarCapitulo(capitulo);
+    if (capNormalizado.isEmpty) {
+      throw Exception('Indica el número de capítulo.');
+    }
+
+    final resumenRef = _resumenes(obraId).doc('${user.uid}_$capNormalizado');
+    final existente = await resumenRef.get();
+    if (existente.exists) {
+      throw Exception('Ya escribiste un resumen para ese capítulo.');
+    }
+
     final sospechoso = contienePalabraProhibida(texto);
 
-    await _resumenes(obraId).add({
+    await resumenRef.set({
       'uid': user.uid,
       'tituloObra': tituloObra.trim(),
       'capitulo': capitulo.trim(),
