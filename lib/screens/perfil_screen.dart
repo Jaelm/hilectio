@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
 import 'admin_propuestas_screen.dart';
@@ -11,6 +12,10 @@ import '../services/obra_service.dart';
 import '../services/cofres_service.dart';
 import '../services/logros_service.dart';
 import 'elegir_apodo_screen.dart';
+
+// TODO: reemplaza esto por tu link real de Ko-fi, Buy Me a Coffee, o el que
+// uses para donaciones.
+const String _urlDonaciones = 'https://ko-fi.com/bloomcebo';
 
 const Map<String, Color> _coloresEstado = {
   'leyendo': Colors.deepOrange,
@@ -401,6 +406,22 @@ class _PerfilScreenState extends State<PerfilScreen> {
               context,
               MaterialPageRoute(builder: (_) => const CuestionarioScreen()),
             ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.favorite_outline, color: Colors.pink),
+            title: const Text('Apoya el proyecto'),
+            subtitle: const Text('Hilectio nunca vende tokens — si quieres, puedes donar'),
+            onTap: () async {
+              final uri = Uri.tryParse(_urlDonaciones);
+              if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No se pudo abrir el link de donaciones')),
+                  );
+                }
+              }
+            },
           ),
           const Divider(),
           ListTile(
