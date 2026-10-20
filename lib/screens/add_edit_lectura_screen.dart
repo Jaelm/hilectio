@@ -6,6 +6,7 @@ import '../models/lectura.dart';
 import '../services/notification_service.dart';
 import '../services/tokens_service.dart';
 import '../services/obra_service.dart';
+import '../services/logros_service.dart';
 
 class AddEditLecturaScreen extends StatefulWidget {
   final Lectura? lectura;
@@ -123,7 +124,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
         .doc(uid)
         .collection('lecturas');
 
-    final datos = {
+    final Map<String, dynamic> datos = {
       'titulo': _tituloCtrl.text.trim(),
       'tipo': _tipo,
       'plataforma': _plataformaCtrl.text.trim(),
@@ -134,6 +135,22 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       'estado': _estadoLectura,
       'actualizadoEn': FieldValue.serverTimestamp(),
     };
+
+    // Doc anterior tal cual estaba en Firestore (null si es una lectura
+    // nueva); lo necesita LogrosService para detectar "reinició tras
+    // terminar" y "avanzó 50+ capítulos en un día".
+    Map<String, dynamic>? datosAnteriores;
+    if (widget.lectura != null) {
+      final snapAnterior = await coleccion.doc(widget.lectura!.id).get();
+      datosAnteriores = snapAnterior.data();
+    }
+    final resultadoLogroLectura = await LogrosService().alGuardarLectura(
+      uid: uid,
+      anterior: datosAnteriores,
+      nuevoCapituloTexto: _capituloCtrl.text.trim(),
+      nuevoEstado: _estadoLectura,
+    );
+    datos.addAll(Map<String, dynamic>.from(resultadoLogroLectura['extra'] ?? {}));
 
     try {
       String id;
@@ -236,6 +253,15 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
             await Future.delayed(const Duration(milliseconds: 900));
           }
         }
+      }
+
+      await LogrosService().registrarInteraccion(uid);
+      final logrosLectura = List<String>.from(resultadoLogroLectura['titulos'] ?? []);
+      final logrosCompletos = await LogrosService().evaluarCompleto(uid);
+      final todosLosLogros = {...logrosLectura, ...logrosCompletos}.toList();
+      if (mounted && todosLosLogros.isNotEmpty) {
+        mostrarLogrosDesbloqueados(context, todosLosLogros);
+        await Future.delayed(const Duration(milliseconds: 600));
       }
 
       if (mounted) Navigator.pop(context);

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'logros_service.dart';
 
 class TokensService {
   static const List<int> recompensasRacha = [1, 3, 5, 7, 9, 11, 15];
@@ -18,6 +19,7 @@ class TokensService {
     await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
       'tokens': FieldValue.increment(cantidad),
     }, SetOptions(merge: true));
+    await LogrosService().registrarGananciaTokens(uid);
   }
 
   /// Resta tokens del saldo de cualquier usuario (ej. penalización por un
@@ -67,11 +69,17 @@ class TokensService {
   /// Llamar después de guardar una lectura. [salvarRacha] solo importa si el
   /// estado era "rota" y el usuario eligió pagar para salvarla.
   Future<Map<String, dynamic>> confirmarActividad({bool salvarRacha = false}) async {
-    return FirebaseFirestore.instance.runTransaction((tx) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final resultado = await FirebaseFirestore.instance.runTransaction<Map<String, dynamic>>((tx) async {
       final snap = await tx.get(_userDoc);
       final data = snap.data() ?? {};
       final int tokensActuales = data['tokens'] ?? 0;
       final int rachaActual = data['rachaActual'] ?? 0;
+      // A diferencia de `rachaActual` (que se reinicia a 1 cada 7 días porque
+      // ahí es donde se repite la tabla de recompensas), `rachaDiasTotal`
+      // cuenta los días consecutivos reales sin tope, para los logros de
+      // "30 días" y "365 días".
+      final int rachaDiasTotal = data['rachaDiasTotal'] ?? 0;
       final Timestamp? ultimaTs = data['rachaUltimaFecha'];
       final DateTime hoy = _soloFecha(DateTime.now());
 
@@ -80,6 +88,7 @@ class TokensService {
         tx.set(_userDoc, {
           'tokens': tokensActuales + recompensa,
           'rachaActual': 1,
+          'rachaDiasTotal': 1,
           'rachaUltimaFecha': Timestamp.fromDate(hoy),
         }, SetOptions(merge: true));
         return {
@@ -105,6 +114,7 @@ class TokensService {
         tx.set(_userDoc, {
           'tokens': nuevosTokens,
           'rachaActual': nuevaRacha,
+          'rachaDiasTotal': rachaDiasTotal + 1,
           'rachaUltimaFecha': Timestamp.fromDate(hoy),
         }, SetOptions(merge: true));
         return {
@@ -124,6 +134,7 @@ class TokensService {
         tx.set(_userDoc, {
           'tokens': nuevosTokens,
           'rachaActual': nuevaRacha,
+          'rachaDiasTotal': rachaDiasTotal + 1,
           'rachaUltimaFecha': Timestamp.fromDate(hoy),
         }, SetOptions(merge: true));
         return {
@@ -141,6 +152,7 @@ class TokensService {
       tx.set(_userDoc, {
         'tokens': nuevosTokens,
         'rachaActual': 1,
+        'rachaDiasTotal': 1,
         'rachaUltimaFecha': Timestamp.fromDate(hoy),
       }, SetOptions(merge: true));
       return {
@@ -151,5 +163,10 @@ class TokensService {
         'rachaRota': true,
       };
     });
+
+    if (resultado['cambio'] == true) {
+      await LogrosService().registrarGananciaTokens(uid);
+    }
+    return resultado;
   }
 }

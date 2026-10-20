@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'tokens_service.dart';
+import 'logros_service.dart';
 import 'obra_service.dart' show normalizarTitulo;
 
 const int tokensPorVoto = 1;
@@ -60,7 +61,10 @@ class ResumenesService {
   /// documento se arma como "{uid}_{capítulo normalizado}", así que un
   /// segundo intento para el mismo capítulo lanza una excepción en vez de
   /// crear un duplicado.
-  Future<bool> crearResumen({
+  ///
+  /// Devuelve un mapa con `sospechoso` (si quedó en revisión) y
+  /// `logrosDesbloqueados` (títulos secretos recién ganados, si aplica).
+  Future<Map<String, dynamic>> crearResumen({
     required String tituloObra,
     required String capitulo,
     required String texto,
@@ -93,7 +97,9 @@ class ResumenesService {
       'creadoEn': FieldValue.serverTimestamp(),
     });
 
-    return sospechoso;
+    final logros = await LogrosService().alCrearResumen(user.uid, '$obraId|$capNormalizado');
+
+    return {'sospechoso': sospechoso, 'logrosDesbloqueados': logros};
   }
 
   /// Resúmenes publicados de una obra, mejor valorados primero.

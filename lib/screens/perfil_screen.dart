@@ -7,11 +7,31 @@ import 'admin_propuestas_screen.dart';
 import 'admin_resumenes_screen.dart';
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart';
+import '../services/logros_service.dart';
 
-class PerfilScreen extends StatelessWidget {
+class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
 
+  @override
+  State<PerfilScreen> createState() => _PerfilScreenState();
+}
+
+class _PerfilScreenState extends State<PerfilScreen> {
   static const _correoAdmin = 'jhormanskic98@gmail.com';
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      LogrosService().registrarInteraccion(uid);
+      LogrosService().evaluarCompleto(uid).then((logros) {
+        if (logros.isNotEmpty && mounted) {
+          mostrarLogrosDesbloqueados(context, logros);
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -304,6 +324,10 @@ Future<void> _elegirFoto(BuildContext context, String uid, List<String> fotos) a
       {'fotoSeleccionada': elegida},
       SetOptions(merge: true),
     );
+    final logros = await LogrosService().alCambiarPerfil(uid);
+    if (logros.isNotEmpty && context.mounted) {
+      mostrarLogrosDesbloqueados(context, logros);
+    }
   }
 }
 
@@ -334,6 +358,10 @@ Future<void> _elegirTitulo(BuildContext context, String uid, List<String> titulo
       {'tituloSeleccionado': elegido},
       SetOptions(merge: true),
     );
+    final logros = await LogrosService().alCambiarPerfil(uid);
+    if (logros.isNotEmpty && context.mounted) {
+      mostrarLogrosDesbloqueados(context, logros);
+    }
   }
 }
 

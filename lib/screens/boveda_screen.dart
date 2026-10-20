@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/lectura.dart';
 import 'add_edit_lectura_screen.dart';
 import 'resumenes_screen.dart';
 import '../services/notification_service.dart';
+import '../services/logros_service.dart';
 
 String _hashPin(String pin) {
   return sha256.convert(utf8.encode(pin)).toString();
@@ -226,6 +228,19 @@ class _ListaBovedaState extends State<_ListaBoveda> {
         .update({'estado': nuevoEstado});
   }
 
+  Future<void> _compartirEstado(BuildContext context, Lectura l) async {
+    await Share.share(
+      'Estoy ${estadosLectura[l.estado]?.toLowerCase() ?? 'leyendo'} '
+      '"${l.titulo}" (cap. ${l.capituloActual}) en Hilectio 📖',
+    );
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final logros = await LogrosService().registrarCompartido(uid);
+    if (logros.isNotEmpty && context.mounted) {
+      mostrarLogrosDesbloqueados(context, logros);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -306,6 +321,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                                   .delete();
                               await NotificationService().cancelar(l.id);
                             }
+                            if (v == 'compartir') _compartirEstado(context, l);
                             if (v == 'resumenes') {
                               Navigator.push(
                                 context,
@@ -325,6 +341,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                             const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
                             const PopupMenuItem(value: 'editar', child: Text('Editar')),
                             const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
+                            const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),
                             const PopupMenuDivider(),
                             ...estadosLectura.entries
                                 .where((e) => e.key != l.estado)

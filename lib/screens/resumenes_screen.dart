@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/resumenes_service.dart';
+import '../services/logros_service.dart';
 import '../services/obra_service.dart' show normalizarTitulo;
 
 class ResumenesScreen extends StatefulWidget {
@@ -78,12 +80,13 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
                               if (textoCtrl.text.trim().isEmpty) return;
                               setModalState(() => enviando = true);
                               try {
-                                final sospechoso = await _servicio.crearResumen(
+                                final resultado = await _servicio.crearResumen(
                                   tituloObra: widget.tituloObra,
                                   capitulo: capituloCtrl.text,
                                   texto: textoCtrl.text,
                                   contieneSpoiler: contieneSpoiler,
                                 );
+                                final sospechoso = resultado['sospechoso'] == true;
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -95,6 +98,12 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
                                       ),
                                     ),
                                   );
+                                  final logros = List<String>.from(
+                                    resultado['logrosDesbloqueados'] ?? [],
+                                  );
+                                  if (logros.isNotEmpty) {
+                                    mostrarLogrosDesbloqueados(context, logros);
+                                  }
                                 }
                               } catch (e) {
                                 setModalState(() => enviando = false);
@@ -155,6 +164,7 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
               final data = doc.data();
               return _ResumenCard(
                 obraId: obraId,
+                tituloObra: widget.tituloObra,
                 resumenId: doc.id,
                 capitulo: data['capitulo'] ?? '',
                 texto: data['texto'] ?? '',
@@ -178,6 +188,7 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
 
 class _ResumenCard extends StatefulWidget {
   final String obraId;
+  final String tituloObra;
   final String resumenId;
   final String capitulo;
   final String texto;
@@ -188,6 +199,7 @@ class _ResumenCard extends StatefulWidget {
 
   const _ResumenCard({
     required this.obraId,
+    required this.tituloObra,
     required this.resumenId,
     required this.capitulo,
     required this.texto,
@@ -204,6 +216,19 @@ class _ResumenCard extends StatefulWidget {
 class _ResumenCardState extends State<_ResumenCard> {
   bool _revelado = false;
   bool _votando = false;
+
+  Future<void> _compartir() async {
+    final texto = widget.contieneSpoiler && !_revelado
+        ? '¡Hay un resumen nuevo de "${widget.tituloObra}" (cap. ${widget.capitulo}) en Hilectio! 📖 (contiene spoiler, cuidado)'
+        : 'Resumen de "${widget.tituloObra}" (cap. ${widget.capitulo}) desde Hilectio:\n\n"${widget.texto}"';
+    await Share.share(texto);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final logros = await LogrosService().registrarCompartido(uid);
+    if (logros.isNotEmpty && mounted) {
+      mostrarLogrosDesbloqueados(context, logros);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -280,6 +305,12 @@ class _ResumenCardState extends State<_ResumenCard> {
                         ),
                       ),
                       Text('${widget.votos}'),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: _compartir,
+                        icon: const Icon(Icons.share_outlined, size: 20),
+                        tooltip: 'Compartir',
+                      ),
                     ],
                   );
                 },
@@ -292,6 +323,12 @@ class _ResumenCardState extends State<_ResumenCard> {
                   Text('${widget.votos}', style: const TextStyle(color: Colors.grey)),
                   const SizedBox(width: 8),
                   const Text('(tu resumen)', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: _compartir,
+                    icon: const Icon(Icons.share_outlined, size: 20),
+                    tooltip: 'Compartir',
+                  ),
                 ],
               ),
           ],

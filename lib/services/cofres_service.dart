@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'logros_service.dart';
 
 enum TipoCofre { normal, raro, legendario }
 enum Pool { titulos, fotos }
@@ -37,22 +38,70 @@ class CofresService {
   static const Map<Pool, Map<String, List<String>>> catalogos = {
     Pool.titulos: {
       'comun': [
+        'Solo un Capítulo Más',
         'Lector Novato',
-        'Fan de los Manhwas',
-        'Ratón de Biblioteca',
-        'Maratonista Casual',
-        'Buscador de Capítulos',
+        'Aventurero de Nivel 1',
+        'Devorador de Páginas',
+        'Acumulador de Pestañas',
+        'Hojear Casual',
+        'Aprendiz de Tinta',
+        'Aficionado al Shōnen',
+        'Lector de Fin de Semana',
+        'Insomnio Literario',
+        'Rata de Biblioteca',
+        'Lector en Tránsito',
+        'Consumidor de Prólogos',
+        'Siempre en Pausa',
+        'Coleccionista de Marcadores',
+        'Entusiasta del Manhwa',
+        'Lector de Bolsillo',
+        'Escaneador de Paneles',
+        'Alma de Protagonista',
+        'Lector de Madrugada',
       ],
       'raro': [
-        'Cazador de Finales',
-        'Coleccionista de Sagas',
-        'Crítico Implacable',
-        'Guardián del Spoiler',
+        'Arquero del Streaming',
+        'Lector de Rango A',
+        'Mago del Grimorio',
+        'Cazador de Spoilers',
+        'Navegante de Capítulos',
+        'Erudito del Webtoon',
+        'Experto en Isekai',
+        'Cultivador de Rango Medio',
+        'Maratón de Fin de Semana',
+        'Guardián de la Biblioteca',
+        'Maestro del Cliffhanger',
+        'Crítico de Manhua',
+        'Sabio de las Viñetas',
+        'Caballero de la Lectura',
+        'Coleccionista de Relatos',
+        'Lector Empedernido',
+        'Cazador de Capítulos',
+        'Adicto a la Tinta',
+        'Lector Sin Fronteras',
+        'Pionero de Historias',
       ],
       'legendario': [
-        'Leyenda de Hilectio',
-        'El Que Todo lo Lee',
-        'Sabio de los Mil Capítulos',
+        'Monarca de las Sombras Literarias',
+        'Rey de los Lectores',
+        'Arquero Genial de las Letras',
+        'Lector de Clase S',
+        'Gran Mago de la Lectura',
+        'Emperador del Cultivo',
+        'Dios de la Tinta',
+        'Oráculo de Hilectio',
+        'Devorador de Mundos',
+        'Soberano del Cliffhanger',
+        'Archimago de los Manhwas',
+        'El Que Lo Ha Leído Todo',
+        'Leyenda de las Páginas',
+        'Señor de los Webtoons',
+        'Erudito Trascendental',
+        'Conquistador de Capítulos',
+        'Titán de las Letras',
+        'Inmortal del Manhua',
+        'Héroe de la Biblioteca',
+        'Leyenda del Streaming Literario',
       ],
     },
     Pool.fotos: {
@@ -84,7 +133,8 @@ class CofresService {
     required TipoCofre cofre,
     required Pool pool,
   }) async {
-    return FirebaseFirestore.instance.runTransaction((tx) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final resultado = await FirebaseFirestore.instance.runTransaction<Map<String, dynamic>>((tx) async {
       final snap = await tx.get(_userDoc);
       final data = snap.data() ?? {};
       final int tokensActuales = data['tokens'] ?? 0;
@@ -128,5 +178,16 @@ class CofresService {
         };
       }
     });
+
+    if (resultado['error'] == null) {
+      final logros = await LogrosService().alAbrirCofre(
+        uid,
+        esComun: cofre == TipoCofre.normal,
+        rarezaResultado: resultado['rareza'] as String,
+        fueDuplicado: resultado['yaTenia'] == true,
+      );
+      resultado['logrosDesbloqueados'] = logros;
+    }
+    return resultado;
   }
 }

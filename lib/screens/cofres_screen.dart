@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/cofres_service.dart';
+import '../services/logros_service.dart';
 
 class CofresScreen extends StatefulWidget {
   const CofresScreen({super.key});
@@ -66,6 +67,11 @@ class _CofresScreenState extends State<CofresScreen> {
         ],
       ),
     );
+
+    final logros = List<String>.from(resultado['logrosDesbloqueados'] ?? []);
+    if (logros.isNotEmpty && mounted) {
+      mostrarLogrosDesbloqueados(context, logros);
+    }
   }
 
   @override
