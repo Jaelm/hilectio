@@ -85,8 +85,13 @@ class ResumenesService {
 
     final sospechoso = contienePalabraProhibida(texto);
 
+    final usuarioSnap =
+        await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+    final apodoAutor = usuarioSnap.data()?['apodo'] as String? ?? 'Usuario';
+
     await resumenRef.set({
       'uid': user.uid,
+      'apodoAutor': apodoAutor,
       'tituloObra': tituloObra.trim(),
       'capitulo': capitulo.trim(),
       'texto': texto.trim(),

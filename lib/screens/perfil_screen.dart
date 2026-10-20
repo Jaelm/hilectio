@@ -8,6 +8,7 @@ import 'admin_resumenes_screen.dart';
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart';
 import '../services/logros_service.dart';
+import 'elegir_apodo_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -22,8 +23,12 @@ class _PerfilScreenState extends State<PerfilScreen> {
   @override
   void initState() {
     super.initState();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
     if (uid != null) {
+      if (user?.email == _correoAdmin) {
+        _otorgarTodoAlAdmin(uid);
+      }
       LogrosService().registrarInteraccion(uid);
       LogrosService().evaluarCompleto(uid).then((logros) {
         if (logros.isNotEmpty && mounted) {
@@ -31,6 +36,39 @@ class _PerfilScreenState extends State<PerfilScreen> {
         }
       });
     }
+  }
+
+  /// Le da al admin todos los títulos (comunes, raros, legendarios y los
+  /// ocultos de logros) y todas las fotos de perfil, sin tener que abrir
+  /// cofres ni cumplir los logros. Solo agrega lo que le falte, así que no
+  /// pisa el título/foto que ya tenga seleccionado.
+  Future<void> _otorgarTodoAlAdmin(String uid) async {
+    final todosLosTitulos = <String>{
+      ...CofresService.catalogos[Pool.titulos]!.values.expand((l) => l),
+      ...logrosOcultos.values,
+    }.toList();
+    final todasLasFotos = CofresService.catalogos[Pool.fotos]!.values
+        .expand((l) => l)
+        .toSet()
+        .toList();
+
+    final ref = FirebaseFirestore.instance.collection('usuarios').doc(uid);
+    final snap = await ref.get();
+    final data = snap.data() ?? {};
+    final titulosActuales = List<String>.from(data['titulosObtenidos'] ?? []);
+    final fotosActuales = List<String>.from(data['fotosObtenidas'] ?? []);
+
+    final faltanTitulos = todosLosTitulos.where((t) => !titulosActuales.contains(t)).toList();
+    final faltanFotos = todasLasFotos.where((f) => !fotosActuales.contains(f)).toList();
+
+    if (faltanTitulos.isEmpty && faltanFotos.isEmpty) return;
+
+    await ref.set({
+      if (faltanTitulos.isNotEmpty)
+        'titulosObtenidos': FieldValue.arrayUnion(faltanTitulos),
+      if (faltanFotos.isNotEmpty)
+        'fotosObtenidas': FieldValue.arrayUnion(faltanFotos),
+    }, SetOptions(merge: true));
   }
 
   @override
@@ -55,6 +93,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               final tituloSeleccionado = data['tituloSeleccionado'] as String?;
               final fotosObtenidas = List<String>.from(data['fotosObtenidas'] ?? []);
               final titulosObtenidos = List<String>.from(data['titulosObtenidos'] ?? []);
+              final apodo = data['apodo'] as String? ?? correo;
               final miembroDesde = user.metadata.creationTime;
 
               return Card(
@@ -82,7 +121,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(correo, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Text(apodo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                 if (tituloSeleccionado != null)
                                   Text(
                                     tituloSeleccionado,
@@ -121,6 +160,18 @@ class _PerfilScreenState extends State<PerfilScreen> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ElegirApodoScreen()),
+                          ),
+                          icon: const Icon(Icons.badge_outlined, size: 18),
+                          label: const Text('Cambiar apodo'),
+                        ),
                       ),
                     ],
                   ),

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/verify_email_screen.dart';
+import 'screens/elegir_apodo_screen.dart';
 import 'services/notification_service.dart';
 
 void main() async {
@@ -57,7 +59,24 @@ class AuthGate extends StatelessWidget {
         if (!user.emailVerified) {
           return const VerifyEmailScreen();
         }
-        return const HomeShell();
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(user.uid)
+              .snapshots(),
+          builder: (context, userDocSnap) {
+            if (userDocSnap.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final apodo = userDocSnap.data?.data()?['apodo'] as String?;
+            if (apodo == null || apodo.trim().isEmpty) {
+              return const ElegirApodoScreen();
+            }
+            return const HomeShell();
+          },
+        );
       },
     );
   }

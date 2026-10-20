@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/resumenes_service.dart';
 import '../services/logros_service.dart';
 import '../services/obra_service.dart' show normalizarTitulo;
+import 'perfil_publico_screen.dart';
 
 class ResumenesScreen extends StatefulWidget {
   final String tituloObra;
@@ -171,6 +172,8 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
                 contieneSpoiler: data['contieneSpoiler'] == true,
                 votos: (data['votosPositivos'] as num?)?.toInt() ?? 0,
                 esPropio: data['uid'] == FirebaseAuth.instance.currentUser?.uid,
+                autorUid: data['uid'] ?? '',
+                apodoAutor: data['apodoAutor'] as String? ?? 'Usuario',
                 servicio: _servicio,
               );
             },
@@ -195,6 +198,8 @@ class _ResumenCard extends StatefulWidget {
   final bool contieneSpoiler;
   final int votos;
   final bool esPropio;
+  final String autorUid;
+  final String apodoAutor;
   final ResumenesService servicio;
 
   const _ResumenCard({
@@ -206,6 +211,8 @@ class _ResumenCard extends StatefulWidget {
     required this.contieneSpoiler,
     required this.votos,
     required this.esPropio,
+    required this.autorUid,
+    required this.apodoAutor,
     required this.servicio,
   });
 
@@ -242,6 +249,32 @@ class _ResumenCardState extends State<_ResumenCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            GestureDetector(
+              onTap: widget.autorUid.isEmpty
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PerfilPublicoScreen(uid: widget.autorUid),
+                        ),
+                      ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.account_circle_outlined, size: 16, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.apodoAutor,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.deepOrange.shade400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
             Row(
               children: [
                 Chip(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'biblioteca_screen.dart';
 import 'perfil_screen.dart';
 import 'cofres_screen.dart';
+import 'descubrir_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -15,7 +16,7 @@ class _HomeShellState extends State<HomeShell> {
 
   static const _screens = [
     BibliotecaScreen(),
-    Center(child: Text('Descubrir')),
+    DescubrirScreen(),
     CofresScreen(),
     PerfilScreen(),
   ];
