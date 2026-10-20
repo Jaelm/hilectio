@@ -7,14 +7,15 @@ import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
 import 'admin_propuestas_screen.dart';
 import 'admin_resumenes_screen.dart';
+import 'admin_portadas_screen.dart';
+import 'admin_plataformas_screen.dart';
+import 'admin_fusionar_obras_screen.dart';
 import '../models/lectura.dart' show estadosLectura;
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart';
 import '../services/logros_service.dart';
 import 'elegir_apodo_screen.dart';
 
-// TODO: reemplaza esto por tu link real de Ko-fi, Buy Me a Coffee, o el que
-// uses para donaciones.
 const String _urlDonaciones = 'https://ko-fi.com/bloomcebo';
 
 const Map<String, Color> _coloresEstado = {
@@ -451,6 +452,33 @@ class _PerfilScreenState extends State<PerfilScreen> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AdminResumenesScreen()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Portadas pendientes'),
+              subtitle: const Text('Obras del catálogo que todavía no tienen portada'),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminPortadasScreen()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart_outlined),
+              title: const Text('Plataformas'),
+              subtitle: const Text('Qué plataformas usa la gente y cuántos usuarios tiene cada una'),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminPlataformasScreen()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.merge_type),
+              title: const Text('Fusionar obras duplicadas'),
+              subtitle: const Text('Corregir un título mal escrito sin perder resúmenes/votos'),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminFusionarObrasScreen()),
               ),
             ),
           ],

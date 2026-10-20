@@ -5,6 +5,7 @@ import '../services/obra_service.dart';
 import '../services/cofres_service.dart' show iconosFoto;
 import 'resumenes_screen.dart';
 import 'perfil_publico_screen.dart';
+import 'ranking_plataformas_view.dart';
 
 const String _correoAdmin = 'jhormanskic98@gmail.com';
 
@@ -42,7 +43,7 @@ class _FiltrosObras {
 
 class _DescubrirScreenState extends State<DescubrirScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  late final TabController _tabs = TabController(length: 3, vsync: this);
   final _busquedaCtrl = TextEditingController();
   String _busqueda = '';
   _FiltrosObras _filtros = _FiltrosObras();
@@ -82,48 +83,51 @@ class _DescubrirScreenState extends State<DescubrirScreen>
           tabs: const [
             Tab(text: 'Obras'),
             Tab(text: 'Usuarios'),
+            Tab(text: 'Plataformas'),
           ],
         ),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _busquedaCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Buscar...',
-                      prefixIcon: const Icon(Icons.search),
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onChanged: (v) => setState(() => _busqueda = v.trim().toLowerCase()),
-                  ),
-                ),
-                if (_tabs.index == 0) ...[
-                  const SizedBox(width: 8),
-                  Badge(
-                    isLabelVisible: _filtros.hayFiltrosActivos,
-                    label: Text('${_filtros.cantidadActivos}'),
-                    child: IconButton.filledTonal(
-                      onPressed: _abrirFiltros,
-                      icon: const Icon(Icons.filter_list),
-                      tooltip: 'Filtrar obras',
+          if (_tabs.index != 2)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _busquedaCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'Buscar...',
+                        prefixIcon: const Icon(Icons.search),
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onChanged: (v) => setState(() => _busqueda = v.trim().toLowerCase()),
                     ),
                   ),
+                  if (_tabs.index == 0) ...[
+                    const SizedBox(width: 8),
+                    Badge(
+                      isLabelVisible: _filtros.hayFiltrosActivos,
+                      label: Text('${_filtros.cantidadActivos}'),
+                      child: IconButton.filledTonal(
+                        onPressed: _abrirFiltros,
+                        icon: const Icon(Icons.filter_list),
+                        tooltip: 'Filtrar obras',
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
           Expanded(
             child: TabBarView(
               controller: _tabs,
               children: [
                 _ObrasTab(busqueda: _busqueda, filtros: _filtros),
                 _UsuariosTab(busqueda: _busqueda),
+                const RankingPlataformasView(),
               ],
             ),
           ),

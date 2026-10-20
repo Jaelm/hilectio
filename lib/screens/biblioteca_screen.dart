@@ -51,6 +51,45 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
         .update({'estado': nuevoEstado});
   }
 
+  /// Atajo rápido para cuando el link de un capítulo deja de servir (algunos
+  /// sitios como Olympus cambian el link del mismo capítulo todos los días):
+  /// evita tener que abrir el formulario completo de "Editar" solo para
+  /// pegar el link nuevo.
+  Future<void> _actualizarLink(BuildContext context, String uid, Lectura l) async {
+    final ctrl = TextEditingController(text: l.link);
+    final nuevoLink = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Actualizar link'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(labelText: 'Nuevo link del capítulo'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    if (nuevoLink == null || nuevoLink.isEmpty || nuevoLink == l.link) return;
+    await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(uid)
+        .collection('lecturas')
+        .doc(l.id)
+        .update({'link': nuevoLink, 'actualizadoEn': FieldValue.serverTimestamp()});
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Link actualizado')),
+      );
+    }
+  }
+
   Future<void> _compartirEstado(BuildContext context, Lectura l) async {
     // ignore: deprecated_member_use
     await Share.share(
@@ -89,7 +128,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
         return GestureDetector(
           onTap: () => _abrirLink(context, l.link),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Stack(
@@ -118,6 +157,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                           icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
                           onSelected: (v) {
                             if (v == 'abrir') _abrirLink(context, l.link);
+                            if (v == 'actualizar_link') _actualizarLink(context, uid, l);
                             if (v == 'editar') {
                               Navigator.push(
                                 context,
@@ -143,6 +183,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                           },
                           itemBuilder: (_) => [
                             const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
+                            const PopupMenuItem(value: 'actualizar_link', child: Text('Actualizar link')),
                             const PopupMenuItem(value: 'editar', child: Text('Editar')),
                             const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
                             const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),
@@ -187,11 +228,18 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                l.titulo,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+              // Alto fijo (en vez de dejar que el texto decida cuánto medir):
+              // así el área de la portada mide siempre lo mismo sin importar
+              // si el título ocupa 1 o 2 líneas.
+              SizedBox(
+                height: 32,
+                child: Text(
+                  l.titulo,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+                ),
               ),
             ],
           ),

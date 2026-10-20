@@ -8,6 +8,26 @@ import '../services/tokens_service.dart';
 import '../services/obra_service.dart';
 import '../services/logros_service.dart';
 
+/// Sitios de lectura conocidos por generar un link distinto para el mismo
+/// capítulo cada cierto tiempo (ej. cada día), para avisarle al usuario que
+/// probablemente tenga que actualizar el link pronto. Agrega aquí otros
+/// sitios si aparecen más casos como este.
+const Map<String, String> _sitiosDeLinkInestable = {
+  'olympusxyz.com':
+      'Olympus genera un link nuevo para el mismo capítulo cada día. Es muy '
+      'probable que este link deje de funcionar en 24 horas o menos.',
+};
+
+/// Si [link] pertenece a un sitio de [_sitiosDeLinkInestable], devuelve su
+/// mensaje de aviso; si no, null.
+String? _avisoLinkInestable(String link) {
+  final texto = link.toLowerCase();
+  for (final entry in _sitiosDeLinkInestable.entries) {
+    if (texto.contains(entry.key)) return entry.value;
+  }
+  return null;
+}
+
 class AddEditLecturaScreen extends StatefulWidget {
   final Lectura? lectura;
 
@@ -269,6 +289,27 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       if (mounted && todosLosLogros.isNotEmpty) {
         mostrarLogrosDesbloqueados(context, todosLosLogros);
         await Future.delayed(const Duration(milliseconds: 600));
+      }
+
+      final avisoLink = _avisoLinkInestable(_linkCtrl.text.trim());
+      if (avisoLink != null && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Aviso sobre este link'),
+            content: Text(
+              '$avisoLink\n\nCuando deje de funcionar, usa "Actualizar link" en '
+              'el menú ⋮ de esta lectura en Biblioteca para pegar el link nuevo '
+              'sin tener que editar todo de nuevo.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Entendido'),
+              ),
+            ],
+          ),
+        );
       }
 
       if (mounted) Navigator.pop(context);

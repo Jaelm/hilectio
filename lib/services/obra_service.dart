@@ -475,6 +475,104 @@ class ObraService {
     await batch.commit();
   }
 
+  /// Fusiona dos obras que en realidad son la misma pero quedaron
+  /// registradas con títulos distintos (ej. "Stream del Arquero Genio" vs
+  /// "Streaming del Arquero Genio"): mueve TODO lo de [tituloViejo] hacia
+  /// [tituloNuevo] -resúmenes, sus votos, y propuestas pendientes/revisadas
+  /// (incluida la copia de cada usuario en "misPropuestas")- y corrige el
+  /// campo "titulo" en la lectura de cada usuario que tenía guardado el
+  /// título viejo, para que no se vuelva a crear la obra vieja la próxima
+  /// vez que alguien edite esa lectura. Al final borra la obra vieja.
+  ///
+  /// No es una operación atómica (toca muchos documentos repartidos en
+  /// varias colecciones); si falla a mitad de camino, se puede volver a
+  /// correr sin duplicar lo que ya se alcanzó a mover.
+  Future<void> fusionarObras({
+    required String tituloViejo,
+    required String tituloNuevo,
+  }) async {
+    final idViejo = normalizarTitulo(tituloViejo);
+    final idNuevo = normalizarTitulo(tituloNuevo);
+    if (idViejo == idNuevo) {
+      throw Exception('Esos dos títulos ya apuntan a la misma obra.');
+    }
+
+    final refViejo = _obras.doc(idViejo);
+    final refNuevo = _obras.doc(idNuevo);
+
+    final snapViejo = await refViejo.get();
+    if (!snapViejo.exists) {
+      throw Exception('No existe ninguna obra registrada con el título anterior.');
+    }
+    final dataViejo = snapViejo.data() ?? {};
+    final snapNuevo = await refNuevo.get();
+    final dataNuevo = snapNuevo.data() ?? {};
+
+    // 1) Fusiona los datos de la obra: lo que ya tenga la obra destino se
+    // conserva, y se completa con lo que le falte desde la obra vieja.
+    final camposViejo = Map<String, dynamic>.from(dataViejo['campos'] ?? {});
+    final camposNuevo = Map<String, dynamic>.from(dataNuevo['campos'] ?? {});
+    final camposFusionados = {...camposViejo, ...camposNuevo};
+
+    await refNuevo.set({
+      'tituloOriginal': tituloNuevo.trim(),
+      if (camposFusionados.isNotEmpty) 'campos': camposFusionados,
+      if ((dataNuevo['tipo'] ?? dataViejo['tipo']) != null)
+        'tipo': dataNuevo['tipo'] ?? dataViejo['tipo'],
+      if ((dataNuevo['imagenUrl'] ?? dataViejo['imagenUrl']) != null)
+        'imagenUrl': dataNuevo['imagenUrl'] ?? dataViejo['imagenUrl'],
+    }, SetOptions(merge: true));
+
+    // 2) Migra resúmenes y sus votos, uno por uno.
+    final resumenesViejos = await refViejo.collection('resumenes').get();
+    for (final doc in resumenesViejos.docs) {
+      final nuevoResumenRef = refNuevo.collection('resumenes').doc(doc.id);
+      await nuevoResumenRef.set(doc.data());
+
+      final votos = await doc.reference.collection('votos').get();
+      for (final voto in votos.docs) {
+        await nuevoResumenRef.collection('votos').doc(voto.id).set(voto.data());
+        await voto.reference.delete();
+      }
+      await doc.reference.delete();
+    }
+
+    // 3) Migra propuestas y su copia en "misPropuestas" de cada proponente.
+    final propuestasViejas = await refViejo.collection('propuestas').get();
+    for (final doc in propuestasViejas.docs) {
+      final data = Map<String, dynamic>.from(doc.data());
+      data['tituloObra'] = tituloNuevo.trim();
+      await refNuevo.collection('propuestas').doc(doc.id).set(data);
+
+      final uidProponente = data['uid'] as String?;
+      if (uidProponente != null) {
+        final misPropRef = FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(uidProponente)
+            .collection('misPropuestas')
+            .doc(doc.id);
+        if ((await misPropRef.get()).exists) {
+          await misPropRef.update({'obraId': idNuevo, 'tituloObra': tituloNuevo.trim()});
+        }
+      }
+      await doc.reference.delete();
+    }
+
+    // 4) Corrige el título guardado en la lectura de cada usuario que tenía
+    // el título viejo (para que se vea bien en su Biblioteca y no "resucite"
+    // la obra vieja la próxima vez que la edite/guarde).
+    final todasLasLecturas = await FirebaseFirestore.instance.collectionGroup('lecturas').get();
+    for (final doc in todasLasLecturas.docs) {
+      final tituloLectura = (doc.data()['titulo'] as String? ?? '').trim();
+      if (tituloLectura.isNotEmpty && normalizarTitulo(tituloLectura) == idViejo) {
+        await doc.reference.update({'titulo': tituloNuevo.trim()});
+      }
+    }
+
+    // 5) La obra vieja ya quedó sin subcolecciones; se borra el documento.
+    await refViejo.delete();
+  }
+
   /// Propuestas del usuario cuyo resultado (aprobada/rechazada) aún no ha visto.
   Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> misPropuestasSinVer(String uid) {
     return _misPropuestas(uid)

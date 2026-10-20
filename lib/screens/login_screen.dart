@@ -48,6 +48,8 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Image.asset('assets/icon/icon_foreground.png', height: 120),
+              const SizedBox(height: 12),
               Text(
                 'Hilectio',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
