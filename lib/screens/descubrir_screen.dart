@@ -24,20 +24,37 @@ class _FiltrosObras {
   String? estado;
   String autor;
   String anio;
+  String genero;
 
-  _FiltrosObras({this.tipo, this.estado, this.autor = '', this.anio = ''});
+  _FiltrosObras({
+    this.tipo,
+    this.estado,
+    this.autor = '',
+    this.anio = '',
+    this.genero = '',
+  });
 
-  _FiltrosObras copiar() =>
-      _FiltrosObras(tipo: tipo, estado: estado, autor: autor, anio: anio);
+  _FiltrosObras copiar() => _FiltrosObras(
+        tipo: tipo,
+        estado: estado,
+        autor: autor,
+        anio: anio,
+        genero: genero,
+      );
 
   bool get hayFiltrosActivos =>
-      tipo != null || estado != null || autor.trim().isNotEmpty || anio.trim().isNotEmpty;
+      tipo != null ||
+      estado != null ||
+      autor.trim().isNotEmpty ||
+      anio.trim().isNotEmpty ||
+      genero.trim().isNotEmpty;
 
   int get cantidadActivos => [
         tipo != null,
         estado != null,
         autor.trim().isNotEmpty,
         anio.trim().isNotEmpty,
+        genero.trim().isNotEmpty,
       ].where((e) => e).length;
 }
 
@@ -149,11 +166,13 @@ class _HojaFiltrosState extends State<_HojaFiltros> {
   late _FiltrosObras _f = widget.filtrosIniciales.copiar();
   late final _autorCtrl = TextEditingController(text: _f.autor);
   late final _anioCtrl = TextEditingController(text: _f.anio);
+  late final _generoCtrl = TextEditingController(text: _f.genero);
 
   @override
   void dispose() {
     _autorCtrl.dispose();
     _anioCtrl.dispose();
+    _generoCtrl.dispose();
     super.dispose();
   }
 
@@ -180,6 +199,7 @@ class _HojaFiltrosState extends State<_HojaFiltros> {
                     _f = _FiltrosObras();
                     _autorCtrl.text = '';
                     _anioCtrl.text = '';
+                    _generoCtrl.text = '';
                   }),
                   child: const Text('Limpiar'),
                 ),
@@ -210,6 +230,15 @@ class _HojaFiltrosState extends State<_HojaFiltros> {
               controller: _autorCtrl,
               decoration: const InputDecoration(labelText: 'Autor/Creador'),
               onChanged: (v) => _f.autor = v,
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _generoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Género',
+                helperText: 'Ej. Acción, Fantasía',
+              ),
+              onChanged: (v) => _f.genero = v,
             ),
             const SizedBox(height: 14),
             TextField(
@@ -297,6 +326,7 @@ class _ObrasTab extends StatelessWidget {
         final docs = snap.data?.docs ?? [];
         final filtroAutor = filtros.autor.trim().toLowerCase();
         final filtroAnio = filtros.anio.trim();
+        final filtroGenero = filtros.genero.trim().toLowerCase();
 
         final filtradas = docs.where((d) {
           final data = d.data();
@@ -316,6 +346,12 @@ class _ObrasTab extends StatelessWidget {
             final autorValor = campos['autor'] is Map ? campos['autor']['valor'] : null;
             final autorTexto = formatearValorCampo(autorValor).toLowerCase();
             if (!autorTexto.contains(filtroAutor)) return false;
+          }
+
+          if (filtroGenero.isNotEmpty) {
+            final generoValor = campos['genero'] is Map ? campos['genero']['valor'] : null;
+            final generoTexto = formatearValorCampo(generoValor).toLowerCase();
+            if (!generoTexto.contains(filtroGenero)) return false;
           }
 
           if (filtroAnio.isNotEmpty) {
@@ -348,7 +384,6 @@ class _ObrasTab extends StatelessWidget {
           itemBuilder: (context, i) {
             final data = filtradas[i].data();
             final titulo = data['tituloOriginal'] as String? ?? filtradas[i].id;
-            final tipo = data['tipo'] as String?;
             final imagenUrl = data['imagenUrl'] as String?;
             final campos = Map<String, dynamic>.from(data['campos'] ?? {});
 
@@ -359,10 +394,11 @@ class _ObrasTab extends StatelessWidget {
               return texto.isEmpty ? null : texto;
             }
 
+            // Solo lo esencial en la tarjeta: portada, nombre, creador y
+            // estado. El resto de los datos (tipo, género, etc.) se ve al
+            // entrar a la obra.
             final partesSubtitulo = <String>[
-              if (tipo != null) tipo,
-              if (valorCampo('genero') != null) valorCampo('genero')!,
-              if (valorCampo('autor') != null) 'de ${valorCampo('autor')}',
+              if (valorCampo('autor') != null) valorCampo('autor')!,
               if (valorCampo('estado') != null) valorCampo('estado')!,
             ];
 

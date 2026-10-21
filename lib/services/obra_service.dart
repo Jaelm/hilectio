@@ -9,6 +9,7 @@ const Map<String, String> camposObra = {
   'genero': 'Género(s)',
   'protagonista': 'Protagonista',
   'autor': 'Autor/Creador',
+  'estudioArte': 'Estudio de arte',
   'antagonista': 'Antagonista principal',
   'estado': 'Estado (En curso / Finalizado)',
   'fechaPublicacion': 'Fecha de publicación',
@@ -40,6 +41,7 @@ const Map<String, int> precioCampoObra = {
   'genero': 2,
   'protagonista': 3,
   'autor': 2,
+  'estudioArte': 2,
   'antagonista': 3,
   'estado': 1,
   'fechaPublicacion': 1,
@@ -85,6 +87,8 @@ String etiquetaCampo(String campo, String tipo) {
       return 'Protagonista $sufijo';
     case 'autor':
       return 'Autor/Creador $sufijo';
+    case 'estudioArte':
+      return 'Estudio de arte $sufijo';
     case 'antagonista':
       return 'Antagonista principal $sufijo';
     case 'estado':

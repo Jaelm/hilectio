@@ -54,7 +54,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCntn9YF6RnnjVp-a5MCQtnud5t8StAjVs',
-    appId: '1:709448525301:android:7b22d82145dabe06bbecbc',
+    appId: '1:709448525301:android:c0c6ca8609b3c2d4bbecbc',
     messagingSenderId: '709448525301',
     projectId: 'hilectio',
     storageBucket: 'hilectio.firebasestorage.app',
