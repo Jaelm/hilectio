@@ -27,16 +27,23 @@ class PlataformasService {
   CollectionReference<Map<String, dynamic>> get _plataformas =>
       FirebaseFirestore.instance.collection('plataformas');
 
-  /// Calcula, entre todas las lecturas que esta cuenta puede leer (todas si
-  /// es admin; si es un usuario normal, las suyas propias más las no +18 de
-  /// los demás, según permiten las reglas de Firestore), cuántos usuarios
-  /// distintos usa cada plataforma y cuántas lecturas "únicas" tiene.
+  /// Calcula, entre las lecturas no +18 de todos los usuarios, cuántos
+  /// usuarios distintos usa cada plataforma y cuántas lecturas "únicas"
+  /// tiene (esta pestaña es pública, así que las +18 quedan siempre fuera,
+  /// sin excepción ni para el admin). El filtro `esAdulto == false` es
+  /// obligatorio en la consulta: las reglas de Firestore de
+  /// `collectionGroup('lecturas')` dependen de ese campo, y sin el filtro
+  /// Firestore rechaza la consulta completa con "permission denied" para
+  /// cualquier cuenta que no sea la del admin.
   ///
   /// "Únicas" = por combinación usuario+obra, no por documento suelto: si
   /// alguien agregó la misma obra dos veces por error (quedó duplicada), eso
   /// no debe inflar el conteo de lecturas de esa plataforma.
   Future<List<EstadisticaPlataforma>> calcularRanking() async {
-    final snap = await FirebaseFirestore.instance.collectionGroup('lecturas').get();
+    final snap = await FirebaseFirestore.instance
+        .collectionGroup('lecturas')
+        .where('esAdulto', isEqualTo: false)
+        .get();
 
     final usuariosPorClave = <String, Set<String>>{};
     final combinacionesVistas = <String>{};
@@ -82,10 +89,14 @@ class PlataformasService {
   }
 
   /// Obras distintas registradas en esta plataforma (sin mostrar quién las
-  /// registró, solo el título). Respeta las mismas reglas de privacidad que
-  /// [calcularRanking] (un usuario normal no ve las +18 ajenas).
+  /// registró, solo el título). Igual que en [calcularRanking], las +18
+  /// quedan siempre fuera y el filtro es obligatorio para que la consulta
+  /// no sea rechazada por las reglas de Firestore.
   Future<List<LecturaDePlataforma>> obtenerLecturasDePlataforma(String clave) async {
-    final snap = await FirebaseFirestore.instance.collectionGroup('lecturas').get();
+    final snap = await FirebaseFirestore.instance
+        .collectionGroup('lecturas')
+        .where('esAdulto', isEqualTo: false)
+        .get();
     final vistos = <String, String>{};
     for (final doc in snap.docs) {
       final data = doc.data();

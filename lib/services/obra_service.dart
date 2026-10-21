@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'tokens_service.dart';
+import '../models/lectura.dart' show estadosLectura;
 
 /// Etiquetas genéricas de respaldo (se usan donde no aplica el tipo de obra,
 /// como en la pantalla de admin). Para el formulario de llenado se usa
@@ -10,10 +11,8 @@ const Map<String, String> camposObra = {
   'protagonista': 'Protagonista',
   'autor': 'Autor/Creador',
   'estudioArte': 'Estudio de arte',
-  'antagonista': 'Antagonista principal',
   'estado': 'Estado (En curso / Finalizado)',
   'fechaPublicacion': 'Fecha de publicación',
-  'capituloTotal': 'Último capítulo/tomo publicado',
 };
 
 /// Campos cuyo valor es una fecha (día/mes/año) elegida con un selector,
@@ -42,10 +41,8 @@ const Map<String, int> precioCampoObra = {
   'protagonista': 3,
   'autor': 2,
   'estudioArte': 2,
-  'antagonista': 3,
   'estado': 1,
   'fechaPublicacion': 1,
-  'capituloTotal': 1,
 };
 
 /// Porcentaje de esos tokens que se otorga cuando el campo ya estaba validado
@@ -89,14 +86,10 @@ String etiquetaCampo(String campo, String tipo) {
       return 'Autor/Creador $sufijo';
     case 'estudioArte':
       return 'Estudio de arte $sufijo';
-    case 'antagonista':
-      return 'Antagonista principal $sufijo';
     case 'estado':
       return 'Estado (En curso / Finalizado)';
     case 'fechaPublicacion':
       return 'Fecha de publicación $sufijo';
-    case 'capituloTotal':
-      return 'Último capítulo/tomo publicado $sufijo';
     default:
       return camposObra[campo] ?? campo;
   }
@@ -192,6 +185,24 @@ bool _coincideValor(dynamic a, dynamic b) {
   return sa.length == sb.length && sa.containsAll(sb);
 }
 
+/// Un usuario que tiene esta obra registrada (+18 incluidas), con el
+/// progreso y la plataforma que él mismo guardó. No incluye apodo/foto a
+/// propósito: la pantalla de detalle de obra solo muestra totales (cuántos
+/// la leen, qué plataformas se usan), nunca quién específicamente.
+class LectorDeObra {
+  final String uid;
+  final String plataforma;
+  final String capituloActual;
+  final String estado;
+
+  LectorDeObra({
+    required this.uid,
+    required this.plataforma,
+    required this.capituloActual,
+    required this.estado,
+  });
+}
+
 class ObraService {
   CollectionReference<Map<String, dynamic>> get _obras =>
       FirebaseFirestore.instance.collection('obras');
@@ -210,12 +221,19 @@ class ObraService {
   /// filtrar por tipo en Descubrir; el último que guarda "gana" (no pasa por
   /// el sistema de propuestas/validación porque es una lista cerrada, no un
   /// dato que valga la pena disputar).
-  Future<void> registrarObra(String tituloLectura, {String? tipo}) async {
+  ///
+  /// [esAdulto] marca la obra como +18 en el catálogo (se muestra con un
+  /// ícono en Descubrir en vez de ocultarse). Es "pegajoso" hacia `true`: si
+  /// alguien ya la marcó +18, una lectura no-adulta de otro usuario para el
+  /// mismo título no la vuelve a poner como segura, para no destapar por
+  /// accidente una obra sensible.
+  Future<void> registrarObra(String tituloLectura, {String? tipo, bool esAdulto = false}) async {
     final obraId = normalizarTitulo(tituloLectura);
     await _obras.doc(obraId).set(
       {
         'tituloOriginal': tituloLectura.trim(),
         if (tipo != null) 'tipo': tipo,
+        if (esAdulto) 'esAdulto': true,
       },
       SetOptions(merge: true),
     );
@@ -231,6 +249,191 @@ class ObraService {
     final obraId = normalizarTitulo(tituloLectura);
     final urlFinal = convertirLinkDriveADirecto(urlImagen);
     await _obras.doc(obraId).set({'imagenUrl': urlFinal}, SetOptions(merge: true));
+  }
+
+  /// Actualiza, si corresponde, el "capítulo más avanzado" conocido de esta
+  /// obra. A diferencia de los demás campos, este NO se propone/valida a
+  /// mano: se calcula solo, tomando el capítulo más alto que cualquier
+  /// usuario haya guardado como su propio progreso de lectura. Así el
+  /// progreso que se muestra en Biblioteca ("3 / 29") siempre refleja hasta
+  /// dónde ha llegado el lector más adelantado de la plataforma, sin
+  /// depender de que alguien lo llene y mantenga actualizado a mano.
+  Future<void> actualizarCapituloMaximo({
+    required String tituloLectura,
+    required String capituloTexto,
+  }) async {
+    final capitulo = int.tryParse(capituloTexto.trim());
+    if (capitulo == null) return;
+    final obraRef = _obras.doc(normalizarTitulo(tituloLectura));
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(obraRef);
+      final actual = (snap.data()?['capituloMaximo'] as num?)?.toInt() ?? 0;
+      if (capitulo > actual) {
+        tx.set(obraRef, {'capituloMaximo': capitulo}, SetOptions(merge: true));
+      }
+    });
+  }
+
+  /// Backfill de un solo uso (solo admin, por las reglas de Firestore):
+  /// recorre TODAS las lecturas de TODOS los usuarios y registra en `obras`
+  /// cualquier título que todavía no esté ahí -sobre todo las +18 que se
+  /// guardaron antes de que el registro automático las incluyera-, y de paso
+  /// corrige el tipo, el "esAdulto" y el capítulo máximo de las que ya
+  /// existían pero quedaron con datos incompletos. Devuelve cuántas obras
+  /// nuevas se crearon.
+  Future<int> backfillObrasDesdeLecturas() async {
+    final snap = await FirebaseFirestore.instance.collectionGroup('lecturas').get();
+
+    // Agrupa por obra (título normalizado) el tipo, si alguna lectura es
+    // +18, y el capítulo más alto que cualquiera haya reportado.
+    final porObra = <String, Map<String, dynamic>>{};
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final titulo = (data['titulo'] as String? ?? '').trim();
+      if (titulo.isEmpty) continue;
+      final obraId = normalizarTitulo(titulo);
+      final info = porObra.putIfAbsent(
+        obraId,
+        () => {'titulo': titulo, 'tipo': data['tipo'], 'esAdulto': false, 'capituloMaximo': 0},
+      );
+      if (data['esAdulto'] == true) info['esAdulto'] = true;
+      final capitulo = int.tryParse((data['capituloActual'] as String? ?? '').trim());
+      if (capitulo != null && capitulo > (info['capituloMaximo'] as int)) {
+        info['capituloMaximo'] = capitulo;
+      }
+    }
+
+    int creadas = 0;
+    for (final entry in porObra.entries) {
+      final obraRef = _obras.doc(entry.key);
+      final obraSnapAntes = await obraRef.get();
+      final info = entry.value;
+
+      await registrarObra(
+        info['titulo'] as String,
+        tipo: info['tipo'] as String?,
+        esAdulto: info['esAdulto'] as bool,
+      );
+
+      final maximoVisto = info['capituloMaximo'] as int;
+      final maximoActual = (obraSnapAntes.data()?['capituloMaximo'] as num?)?.toInt() ?? 0;
+      if (maximoVisto > maximoActual) {
+        await obraRef.set({'capituloMaximo': maximoVisto}, SetOptions(merge: true));
+      }
+
+      if (!obraSnapAntes.exists) creadas++;
+    }
+
+    // Backfill de "obras/{obraId}/lectores/{uid}": sin esto, los lectores
+    // que ya tenían la obra guardada ANTES de que existiera este resumen por
+    // usuario no aparecerían en el conteo de la pantalla de detalle hasta
+    // que volvieran a guardar su lectura.
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final titulo = (data['titulo'] as String? ?? '').trim();
+      if (titulo.isEmpty) continue;
+      final uid = doc.reference.parent.parent?.id;
+      if (uid == null) continue;
+      final obraId = normalizarTitulo(titulo);
+      await _obras.doc(obraId).collection('lectores').doc(uid).set({
+        'estado': estadosLectura.containsKey(data['estado']) ? data['estado'] : 'leyendo',
+        'plataforma': (data['plataforma'] as String? ?? '').trim(),
+        'capituloActual': (data['capituloActual'] as String? ?? '').trim(),
+        'actualizadoEn': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    return creadas;
+  }
+
+  /// Guarda/actualiza "mi" entrada en `obras/{obraId}/lectores/{uid}` cada
+  /// vez que guardo una lectura (sea +18 o no). Es la fuente de la que se
+  /// arma el conteo de lectores y plataformas en la pantalla de detalle de
+  /// obra: cada usuario escribe únicamente SU propio documento (igual patrón
+  /// que "likes"), así que no hace falta leer las lecturas de nadie más para
+  /// armar el total -eso es lo que antes rompía con +18, porque las reglas
+  /// de Firestore protegen esas lecturas de ser leídas por otros usuarios.
+  Future<void> actualizarResumenLector({
+    required String tituloLectura,
+    required String estado,
+    required String plataforma,
+    required String capituloActual,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final obraId = normalizarTitulo(tituloLectura);
+    await _obras.doc(obraId).collection('lectores').doc(user.uid).set({
+      'estado': estado,
+      'plataforma': plataforma.trim(),
+      'capituloActual': capituloActual.trim(),
+      'actualizadoEn': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Borra "mi" entrada de `obras/{obraId}/lectores/{uid}` (cuando elimino
+  /// esa lectura de mi Biblioteca/Bóveda).
+  Future<void> eliminarResumenLector(String tituloLectura) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final obraId = normalizarTitulo(tituloLectura);
+    await _obras.doc(obraId).collection('lectores').doc(user.uid).delete();
+  }
+
+  /// Lectores de esta obra (+18 incluidas): uno por cada usuario que tenga
+  /// un documento en `obras/{obraId}/lectores`, con la plataforma y el
+  /// capítulo que él mismo guardó. A diferencia de antes, no depende de leer
+  /// las lecturas privadas de otros usuarios (lo cual las reglas de
+  /// Firestore no permiten para +18), así que funciona igual para cualquier
+  /// obra.
+  Future<List<LectorDeObra>> obtenerLectoresDeObra(String tituloLectura) async {
+    final obraId = normalizarTitulo(tituloLectura);
+    final snap = await _obras.doc(obraId).collection('lectores').get();
+
+    return snap.docs.map((doc) {
+      final data = doc.data();
+      return LectorDeObra(
+        uid: doc.id,
+        plataforma: (data['plataforma'] as String? ?? '').trim(),
+        capituloActual: (data['capituloActual'] as String? ?? '').trim(),
+        estado: estadosLectura.containsKey(data['estado']) ? data['estado'] as String : 'leyendo',
+      );
+    }).toList();
+  }
+
+  /// Si el usuario actual ya le dio "me gusta" a esta obra.
+  Future<bool> yaLeDiLike(String tituloLectura) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    final obraId = normalizarTitulo(tituloLectura);
+    final doc = await _obras.doc(obraId).collection('likes').doc(user.uid).get();
+    return doc.exists;
+  }
+
+  /// Da o quita el "me gusta" del usuario actual a esta obra. El contador
+  /// `likes` del documento de la obra se recalcula dentro de la misma
+  /// transacción a partir de su valor guardado +1/-1, nunca contando toda
+  /// la subcolección de nuevo (sería caro). Devuelve true si quedó "dado".
+  Future<bool> alternarLike(String tituloLectura) async {
+    final user = FirebaseAuth.instance.currentUser!;
+    final obraId = normalizarTitulo(tituloLectura);
+    final obraRef = _obras.doc(obraId);
+    final likeRef = obraRef.collection('likes').doc(user.uid);
+
+    return FirebaseFirestore.instance.runTransaction((tx) async {
+      final likeSnap = await tx.get(likeRef);
+      final obraSnap = await tx.get(obraRef);
+      final actual = (obraSnap.data()?['likes'] as num?)?.toInt() ?? 0;
+
+      if (likeSnap.exists) {
+        tx.delete(likeRef);
+        tx.set(obraRef, {'likes': actual > 0 ? actual - 1 : 0}, SetOptions(merge: true));
+        return false;
+      } else {
+        tx.set(likeRef, {'creadoEn': FieldValue.serverTimestamp()});
+        tx.set(obraRef, {'likes': actual + 1}, SetOptions(merge: true));
+        return true;
+      }
+    });
   }
 
   /// Campos de esta obra ya validados por el admin (campo -> valor).

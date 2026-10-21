@@ -53,6 +53,50 @@ class _PerfilScreenState extends State<PerfilScreen> {
     }
   }
 
+  /// Backfill de un solo uso: recorre todas las lecturas de todos los
+  /// usuarios y registra en el catálogo `obras` cualquier título que todavía
+  /// no esté ahí (sobre todo lecturas +18 guardadas antes de que esto se
+  /// hiciera automático), para que aparezcan en Descubrir y con su portada en
+  /// la Bóveda. Pide confirmación porque recorre toda la base de datos.
+  Future<void> _ejecutarBackfillObras(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Registrar obras faltantes'),
+        content: const Text(
+          'Esto revisa todas las lecturas guardadas por todos los usuarios y '
+          'crea en el catálogo las que todavía no existan ahí (incluidas las '
+          '+18). Puede tardar unos segundos. ¿Continuar?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Continuar')),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registrando obras faltantes…')),
+      );
+    }
+    try {
+      final creadas = await ObraService().backfillObrasDesdeLecturas();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Listo: $creadas obra(s) nueva(s) registrada(s).')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   /// Le da al admin todos los títulos (comunes, raros, legendarios y los
   /// ocultos de logros) y todas las fotos de perfil, sin tener que abrir
   /// cofres ni cumplir los logros. Solo agrega lo que le falte, así que no
@@ -480,6 +524,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 context,
                 MaterialPageRoute(builder: (_) => const AdminFusionarObrasScreen()),
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.sync_outlined),
+              title: const Text('Registrar obras faltantes'),
+              subtitle: const Text(
+                'Un solo uso: indexa lecturas (incluidas +18) guardadas antes '
+                'de que esto se hiciera automático',
+              ),
+              onTap: () => _ejecutarBackfillObras(context),
             ),
           ],
           const Divider(),

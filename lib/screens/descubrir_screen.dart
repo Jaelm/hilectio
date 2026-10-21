@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart' show iconosFoto;
-import 'resumenes_screen.dart';
+import 'obra_detalle_screen.dart';
 import 'perfil_publico_screen.dart';
 import 'ranking_plataformas_view.dart';
 
@@ -385,6 +385,7 @@ class _ObrasTab extends StatelessWidget {
             final data = filtradas[i].data();
             final titulo = data['tituloOriginal'] as String? ?? filtradas[i].id;
             final imagenUrl = data['imagenUrl'] as String?;
+            final esAdulto = data['esAdulto'] == true;
             final campos = Map<String, dynamic>.from(data['campos'] ?? {});
 
             String? valorCampo(String campo) {
@@ -427,7 +428,32 @@ class _ObrasTab extends StatelessWidget {
                           ),
                   ),
                 ),
-                title: Text(titulo),
+                title: Row(
+                  children: [
+                    Flexible(child: Text(titulo, overflow: TextOverflow.ellipsis)),
+                    if (esAdulto) ...[
+                      const SizedBox(width: 6),
+                      Tooltip(
+                        message: 'Contenido +18',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade600,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '18+',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 subtitle: partesSubtitulo.isNotEmpty ? Text(partesSubtitulo.join(' · ')) : null,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -443,7 +469,7 @@ class _ObrasTab extends StatelessWidget {
                 ),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ResumenesScreen(tituloObra: titulo)),
+                  MaterialPageRoute(builder: (_) => ObraDetalleScreen(titulo: titulo)),
                 ),
               ),
             );

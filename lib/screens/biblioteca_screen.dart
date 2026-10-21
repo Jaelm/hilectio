@@ -8,7 +8,7 @@ import 'add_edit_lectura_screen.dart';
 import 'resumenes_screen.dart';
 import '../services/notification_service.dart';
 import '../services/logros_service.dart';
-import '../services/obra_service.dart' show normalizarTitulo, formatearValorCampo;
+import '../services/obra_service.dart';
 
 class BibliotecaScreen extends StatefulWidget {
   const BibliotecaScreen({super.key});
@@ -32,7 +32,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
     }
   }
 
-  Future<void> _eliminar(String uid, String id) async {
+  Future<void> _eliminar(String uid, String id, String titulo) async {
     await FirebaseFirestore.instance
         .collection('usuarios')
         .doc(uid)
@@ -40,15 +40,22 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
         .doc(id)
         .delete();
     await NotificationService().cancelar(id);
+    await ObraService().eliminarResumenLector(titulo);
   }
 
-  Future<void> _cambiarEstado(String uid, String id, String nuevoEstado) async {
+  Future<void> _cambiarEstado(String uid, String id, String nuevoEstado, Lectura l) async {
     await FirebaseFirestore.instance
         .collection('usuarios')
         .doc(uid)
         .collection('lecturas')
         .doc(id)
         .update({'estado': nuevoEstado});
+    await ObraService().actualizarResumenLector(
+      tituloLectura: l.titulo,
+      estado: nuevoEstado,
+      plataforma: l.plataforma,
+      capituloActual: l.capituloActual,
+    );
   }
 
   /// Atajo rápido para cuando el link de un capítulo deja de servir (algunos
@@ -119,9 +126,11 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
       builder: (context, obraSnap) {
         final obraData = (obraSnap.data?.data()) ?? <String, dynamic>{};
         final imagenUrl = obraData['imagenUrl'] as String?;
-        final campos = Map<String, dynamic>.from(obraData['campos'] ?? {});
-        final totalCampo = campos['capituloTotal'];
-        final total = totalCampo is Map ? formatearValorCampo(totalCampo['valor']) : null;
+        // El "total" se calcula solo: es el capítulo más avanzado que
+        // cualquier usuario haya guardado para esta obra (ver
+        // ObraService.actualizarCapituloMaximo), no un dato llenado a mano.
+        final capituloMaximo = (obraData['capituloMaximo'] as num?)?.toInt();
+        final total = capituloMaximo?.toString();
         final etiquetaProgreso =
             (total != null && total.isNotEmpty) ? '${l.capituloActual} / $total' : 'Cap. ${l.capituloActual}';
 
@@ -164,7 +173,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                                 MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
                               );
                             }
-                            if (v == 'eliminar') _eliminar(uid, l.id);
+                            if (v == 'eliminar') _eliminar(uid, l.id, l.titulo);
                             if (v == 'compartir') _compartirEstado(context, l);
                             if (v == 'resumenes') {
                               Navigator.push(
@@ -178,7 +187,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                               );
                             }
                             if (estadosLectura.containsKey(v) && v != l.estado) {
-                              _cambiarEstado(uid, l.id, v);
+                              _cambiarEstado(uid, l.id, v, l);
                             }
                           },
                           itemBuilder: (_) => [

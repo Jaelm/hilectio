@@ -8,9 +8,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/lectura.dart';
 import 'add_edit_lectura_screen.dart';
+import 'obra_detalle_screen.dart';
 import 'resumenes_screen.dart';
 import '../services/notification_service.dart';
 import '../services/logros_service.dart';
+import '../services/obra_service.dart';
 
 String _hashPin(String pin) {
   return sha256.convert(utf8.encode(pin)).toString();
@@ -219,13 +221,19 @@ class _ListaBovedaState extends State<_ListaBoveda> {
     }
   }
 
-  Future<void> _cambiarEstado(String uid, String id, String nuevoEstado) async {
+  Future<void> _cambiarEstado(String uid, String id, String nuevoEstado, Lectura l) async {
     await FirebaseFirestore.instance
         .collection('usuarios')
         .doc(uid)
         .collection('lecturas')
         .doc(id)
         .update({'estado': nuevoEstado});
+    await ObraService().actualizarResumenLector(
+      tituloLectura: l.titulo,
+      estado: nuevoEstado,
+      plataforma: l.plataforma,
+      capituloActual: l.capituloActual,
+    );
   }
 
   Future<void> _compartirEstado(BuildContext context, Lectura l) async {
@@ -240,6 +248,196 @@ class _ListaBovedaState extends State<_ListaBoveda> {
     if (logros.isNotEmpty && context.mounted) {
       mostrarLogrosDesbloqueados(context, logros);
     }
+  }
+
+  /// Atajo rápido para cuando el link de un capítulo deja de servir (igual
+  /// que en Biblioteca): evita tener que abrir el formulario completo de
+  /// "Editar" solo para pegar el link nuevo.
+  Future<void> _actualizarLink(BuildContext context, String uid, Lectura l) async {
+    final ctrl = TextEditingController(text: l.link);
+    final nuevoLink = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Actualizar link'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(labelText: 'Nuevo link del capítulo'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    if (nuevoLink == null || nuevoLink.isEmpty || nuevoLink == l.link) return;
+    await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(uid)
+        .collection('lecturas')
+        .doc(l.id)
+        .update({'link': nuevoLink, 'actualizadoEn': FieldValue.serverTimestamp()});
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Link actualizado')),
+      );
+    }
+  }
+
+  Widget _placeholderPortada() => Container(
+        decoration: BoxDecoration(
+          color: Colors.deepOrange.shade50,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.menu_book_outlined, color: Colors.deepOrange, size: 32),
+      );
+
+  Widget _tarjetaLectura(BuildContext context, String uid, Lectura l) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('obras').doc(normalizarTitulo(l.titulo)).get(),
+      builder: (context, obraSnap) {
+        final obraData = (obraSnap.data?.data()) ?? <String, dynamic>{};
+        final imagenUrl = obraData['imagenUrl'] as String?;
+        final capituloMaximo = (obraData['capituloMaximo'] as num?)?.toInt();
+        final total = capituloMaximo?.toString();
+        final etiquetaProgreso =
+            (total != null && total.isNotEmpty) ? '${l.capituloActual} / $total' : 'Cap. ${l.capituloActual}';
+
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ObraDetalleScreen(titulo: l.titulo)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: (imagenUrl != null && imagenUrl.isNotEmpty)
+                          ? Image.network(
+                              imagenUrl,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) =>
+                                  progress == null ? child : _placeholderPortada(),
+                              errorBuilder: (_, __, ___) => _placeholderPortada(),
+                            )
+                          : _placeholderPortada(),
+                    ),
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: Material(
+                        color: Colors.black38,
+                        shape: const CircleBorder(),
+                        child: PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
+                          onSelected: (v) {
+                            if (v == 'abrir') _abrirLink(context, l.link);
+                            if (v == 'actualizar_link') _actualizarLink(context, uid, l);
+                            if (v == 'editar') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
+                              );
+                            }
+                            if (v == 'eliminar') {
+                              FirebaseFirestore.instance
+                                  .collection('usuarios')
+                                  .doc(uid)
+                                  .collection('lecturas')
+                                  .doc(l.id)
+                                  .delete();
+                              NotificationService().cancelar(l.id);
+                              ObraService().eliminarResumenLector(l.titulo);
+                            }
+                            if (v == 'compartir') _compartirEstado(context, l);
+                            if (v == 'resumenes') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ResumenesScreen(
+                                    tituloObra: l.titulo,
+                                    capituloSugerido: l.capituloActual,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (estadosLectura.containsKey(v) && v != l.estado) {
+                              _cambiarEstado(uid, l.id, v, l);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
+                            const PopupMenuItem(value: 'actualizar_link', child: Text('Actualizar link')),
+                            const PopupMenuItem(value: 'editar', child: Text('Editar')),
+                            const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
+                            const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),
+                            const PopupMenuDivider(),
+                            ...estadosLectura.entries
+                                .where((e) => e.key != l.estado)
+                                .map((e) => PopupMenuItem(
+                                      value: e.key,
+                                      child: Text('Marcar como ${e.value}'),
+                                    )),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.55),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(10),
+                            bottomRight: Radius.circular(10),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          etiquetaProgreso,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 32,
+                child: Text(
+                  l.titulo,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -294,70 +492,16 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                     ),
                   );
                 }
-                return ListView.builder(
+                return GridView.builder(
                   padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 18,
+                    childAspectRatio: 0.52,
+                  ),
                   itemCount: lecturas.length,
-                  itemBuilder: (context, i) {
-                    final l = lecturas[i];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        title: Text(l.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('${l.tipo} · Cap. ${l.capituloActual} · ${l.plataforma}'),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (v) async {
-                            if (v == 'abrir') _abrirLink(context, l.link);
-                            if (v == 'editar') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
-                              );
-                            }
-                            if (v == 'eliminar') {
-                              await FirebaseFirestore.instance
-                                  .collection('usuarios')
-                                  .doc(uid)
-                                  .collection('lecturas')
-                                  .doc(l.id)
-                                  .delete();
-                              await NotificationService().cancelar(l.id);
-                            }
-                            if (v == 'compartir') _compartirEstado(context, l);
-                            if (v == 'resumenes') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ResumenesScreen(
-                                    tituloObra: l.titulo,
-                                    capituloSugerido: l.capituloActual,
-                                  ),
-                                ),
-                              );
-                            }
-                            if (estadosLectura.containsKey(v) && v != l.estado) {
-                              _cambiarEstado(uid, l.id, v);
-                            }
-                          },
-                          itemBuilder: (_) => [
-                            const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
-                            const PopupMenuItem(value: 'editar', child: Text('Editar')),
-                            const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
-                            const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),
-                            const PopupMenuDivider(),
-                            ...estadosLectura.entries
-                                .where((e) => e.key != l.estado)
-                                .map((e) => PopupMenuItem(
-                                      value: e.key,
-                                      child: Text('Marcar como ${e.value}'),
-                                    )),
-                            const PopupMenuDivider(),
-                            const PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-                          ],
-                        ),
-                        onTap: () => _abrirLink(context, l.link),
-                      ),
-                    );
-                  },
+                  itemBuilder: (context, i) => _tarjetaLectura(context, uid, lecturas[i]),
                 );
               },
             ),

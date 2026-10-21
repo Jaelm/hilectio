@@ -7,6 +7,7 @@ import '../services/notification_service.dart';
 import '../services/tokens_service.dart';
 import '../services/obra_service.dart';
 import '../services/logros_service.dart';
+import '../services/plataformas_service.dart';
 
 /// Sitios de lectura conocidos por generar un link distinto para el mismo
 /// capítulo cada cierto tiempo (ej. cada día), para avisarle al usuario que
@@ -44,7 +45,6 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
   late TextEditingController _capituloCtrl;
   late TextEditingController _linkCtrl;
   late TextEditingController _frecuenciaCtrl;
-  late FocusNode _tituloFocus;
   final Map<String, TextEditingController> _obraCtrls = {
     for (final campo in camposObra.keys) campo: TextEditingController(),
   };
@@ -53,6 +53,17 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
   bool _esAdulto = false;
   bool _loading = false;
   bool _cargandoCamposObra = false;
+
+  /// `Autocomplete` exige pasar un FocusNode propio cuando se le pasa un
+  /// `textEditingController` propio (si no, lanza un assertion error), así
+  /// que se crean explícitos en vez de dejar que los genere internamente.
+  final FocusNode _tituloFocus = FocusNode();
+  final FocusNode _plataformaFocus = FocusNode();
+
+  /// Sugerencias para autocompletar: títulos ya registrados en el catálogo
+  /// y plataformas ya usadas (propias + de la comunidad, sin +18 de otros).
+  List<String> _titulosConocidos = [];
+  List<String> _plataformasConocidas = [];
 
   /// Campos de la obra que ya están validados (campo -> valor) y por lo
   /// tanto se muestran bloqueados en vez de como un formulario editable.
@@ -74,11 +85,8 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     _capituloCtrl = TextEditingController(text: l?.capituloActual ?? '');
     _linkCtrl = TextEditingController(text: l?.link ?? '');
     _frecuenciaCtrl = TextEditingController(text: (l?.frecuenciaDias ?? 7).toString());
-    _tituloFocus = FocusNode();
     _tituloFocus.addListener(() {
-      if (!_tituloFocus.hasFocus) {
-        _cargarCamposBloqueados();
-      }
+      if (!_tituloFocus.hasFocus) _cargarCamposBloqueados();
     });
     if (l != null) {
       _tipo = l.tipo;
@@ -86,12 +94,58 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       _estadoLectura = l.estado;
       _cargarCamposBloqueados();
     }
+    _cargarSugerencias();
   }
 
   @override
   void dispose() {
     _tituloFocus.dispose();
+    _plataformaFocus.dispose();
     super.dispose();
+  }
+
+  /// Trae los títulos ya registrados en el catálogo y las plataformas ya
+  /// usadas (propias, +18 incluidas, más las de la comunidad que no son
+  /// +18), para ofrecerlas como autocompletado. Si algo falla, el
+  /// formulario sigue funcionando normal, solo sin sugerencias.
+  Future<void> _cargarSugerencias() async {
+    try {
+      final obrasSnap = await FirebaseFirestore.instance.collection('obras').get();
+      final titulos = obrasSnap.docs
+          .map((d) => d.data()['tituloOriginal'] as String?)
+          .whereType<String>()
+          .where((t) => t.trim().isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+      final plataformasMapa = <String, String>{};
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final propiasSnap = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(uid)
+            .collection('lecturas')
+            .get();
+        for (final d in propiasSnap.docs) {
+          final p = (d.data()['plataforma'] as String? ?? '').trim();
+          if (p.isNotEmpty) plataformasMapa.putIfAbsent(p.toLowerCase(), () => p);
+        }
+      }
+      final ranking = await PlataformasService().calcularRanking();
+      for (final e in ranking) {
+        plataformasMapa.putIfAbsent(e.clave, () => e.etiqueta);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _titulosConocidos = titulos;
+        _plataformasConocidas = plataformasMapa.values.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      });
+    } catch (_) {
+      // Autocompletar es un extra: si falla, se sigue escribiendo a mano.
+    }
   }
 
   /// Consulta si esta obra ya tiene campos validados y, de ser así, bloquea
@@ -247,12 +301,34 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                     : formatearFechaADisplayISO(_fechasSeleccionadas[entry.key]!))
                 : entry.value.text,
       };
-      // Registra la obra en el catálogo público (pestaña Descubrir) salvo
-      // que sea +18: esas se mantienen fuera de lo buscable/público, igual
-      // que ya pasa con la bóveda.
-      if (!_esAdulto) {
-        await ObraService().registrarObra(_tituloCtrl.text.trim(), tipo: _tipo);
+      // Registra la obra en el catálogo público (pestaña Descubrir), +18
+      // incluidas: esas aparecen igual, pero marcadas con un ícono, mientras
+      // que quién la está leyendo sigue siendo privado (reglas de Firestore).
+      await ObraService().registrarObra(
+        _tituloCtrl.text.trim(),
+        tipo: _tipo,
+        esAdulto: _esAdulto,
+      );
+      await ObraService().actualizarCapituloMaximo(
+        tituloLectura: _tituloCtrl.text.trim(),
+        capituloTexto: _capituloCtrl.text.trim(),
+      );
+
+      // Mi propio "estoy leyendo esto" en la obra (ver ObraDetalleScreen):
+      // si cambié el título, primero se borra la entrada de la obra vieja
+      // para no quedar "leyendo" dos títulos distintos a la vez.
+      final tituloAnterior = (datosAnteriores?['titulo'] as String?)?.trim();
+      if (tituloAnterior != null &&
+          tituloAnterior.isNotEmpty &&
+          normalizarTitulo(tituloAnterior) != normalizarTitulo(_tituloCtrl.text.trim())) {
+        await ObraService().eliminarResumenLector(tituloAnterior);
       }
+      await ObraService().actualizarResumenLector(
+        tituloLectura: _tituloCtrl.text.trim(),
+        estado: _estadoLectura,
+        plataforma: _plataformaCtrl.text.trim(),
+        capituloActual: _capituloCtrl.text.trim(),
+      );
 
       if (valoresObra.values.any((v) => v.trim().isNotEmpty)) {
         final resumenObra = await ObraService().enviarDatosObra(
@@ -338,11 +414,27 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
-                  controller: _tituloCtrl,
+                Autocomplete<String>(
+                  textEditingController: _tituloCtrl,
                   focusNode: _tituloFocus,
-                  decoration: const InputDecoration(labelText: 'Título'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Escribe un título' : null,
+                  optionsMaxHeight: 220,
+                  optionsBuilder: (TextEditingValue value) {
+                    final texto = value.text.trim().toLowerCase();
+                    if (texto.isEmpty) return const Iterable<String>.empty();
+                    return _titulosConocidos.where((t) => t.toLowerCase().contains(texto)).take(8);
+                  },
+                  onSelected: (seleccion) {
+                    _tituloCtrl.text = seleccion;
+                    _cargarCamposBloqueados();
+                  },
+                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                    return TextFormField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(labelText: 'Título'),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Escribe un título' : null,
+                    );
+                  },
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
@@ -354,10 +446,23 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                   onChanged: (v) => setState(() => _tipo = v ?? 'Manhwa'),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  controller: _plataformaCtrl,
-                  decoration: const InputDecoration(labelText: 'Plataforma (ej. MangaDex)'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Escribe la plataforma' : null,
+                Autocomplete<String>(
+                  textEditingController: _plataformaCtrl,
+                  focusNode: _plataformaFocus,
+                  optionsMaxHeight: 220,
+                  optionsBuilder: (TextEditingValue value) {
+                    final texto = value.text.trim().toLowerCase();
+                    if (texto.isEmpty) return const Iterable<String>.empty();
+                    return _plataformasConocidas.where((p) => p.toLowerCase().contains(texto)).take(8);
+                  },
+                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                    return TextFormField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(labelText: 'Plataforma (ej. MangaDex)'),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Escribe la plataforma' : null,
+                    );
+                  },
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
