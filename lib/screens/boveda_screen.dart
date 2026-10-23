@@ -28,6 +28,7 @@ class BovedaScreen extends StatefulWidget {
 class _BovedaScreenState extends State<BovedaScreen> {
   bool _desbloqueado = false;
   bool _cargando = true;
+  bool _reseteandoPin = false;
   String? _pinHashGuardado;
 
   @override
@@ -51,17 +52,23 @@ class _BovedaScreenState extends State<BovedaScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (!_desbloqueado) {
-      return _pinHashGuardado == null
-          ? _CrearPinView(onCreado: (hash) {
-              setState(() {
-                _pinHashGuardado = hash;
-                _desbloqueado = true;
-              });
-            })
-          : _IngresarPinView(
-              pinHashGuardado: _pinHashGuardado!,
-              onCorrecto: () => setState(() => _desbloqueado = true),
-            );
+      if (_pinHashGuardado == null || _reseteandoPin) {
+        return _CrearPinView(
+          esReinicio: _reseteandoPin,
+          onCreado: (hash) {
+            setState(() {
+              _pinHashGuardado = hash;
+              _desbloqueado = true;
+              _reseteandoPin = false;
+            });
+          },
+        );
+      }
+      return _IngresarPinView(
+        pinHashGuardado: _pinHashGuardado!,
+        onCorrecto: () => setState(() => _desbloqueado = true),
+        onOlvidePin: () => setState(() => _reseteandoPin = true),
+      );
     }
     return const _ListaBoveda();
   }
@@ -69,7 +76,8 @@ class _BovedaScreenState extends State<BovedaScreen> {
 
 class _CrearPinView extends StatefulWidget {
   final void Function(String hash) onCreado;
-  const _CrearPinView({required this.onCreado});
+  final bool esReinicio;
+  const _CrearPinView({required this.onCreado, this.esReinicio = false});
 
   @override
   State<_CrearPinView> createState() => _CrearPinViewState();
@@ -108,14 +116,20 @@ class _CrearPinViewState extends State<_CrearPinView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Crear PIN de la bóveda')),
+      appBar: AppBar(
+        title: Text(widget.esReinicio ? 'Nuevo PIN de la bóveda' : 'Crear PIN de la bóveda'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Crea un PIN de 4 dígitos para proteger tu bóveda +18.'),
+            Text(
+              widget.esReinicio
+                  ? 'Pon un PIN nuevo de 4 dígitos para tu bóveda +18.'
+                  : 'Crea un PIN de 4 dígitos para proteger tu bóveda +18.',
+            ),
             const SizedBox(height: 20),
             TextField(
               controller: _pinCtrl,
@@ -137,7 +151,9 @@ class _CrearPinViewState extends State<_CrearPinView> {
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _guardando ? null : _guardar,
-              child: _guardando ? const CircularProgressIndicator() : const Text('Crear PIN'),
+              child: _guardando
+                  ? const CircularProgressIndicator()
+                  : Text(widget.esReinicio ? 'Guardar PIN nuevo' : 'Crear PIN'),
             ),
           ],
         ),
@@ -149,7 +165,12 @@ class _CrearPinViewState extends State<_CrearPinView> {
 class _IngresarPinView extends StatefulWidget {
   final String pinHashGuardado;
   final VoidCallback onCorrecto;
-  const _IngresarPinView({required this.pinHashGuardado, required this.onCorrecto});
+  final VoidCallback onOlvidePin;
+  const _IngresarPinView({
+    required this.pinHashGuardado,
+    required this.onCorrecto,
+    required this.onOlvidePin,
+  });
 
   @override
   State<_IngresarPinView> createState() => _IngresarPinViewState();
@@ -158,6 +179,7 @@ class _IngresarPinView extends StatefulWidget {
 class _IngresarPinViewState extends State<_IngresarPinView> {
   final _pinCtrl = TextEditingController();
   String? _error;
+  bool _verificandoContrasena = false;
 
   void _verificar() {
     final hash = _hashPin(_pinCtrl.text.trim());
@@ -166,6 +188,60 @@ class _IngresarPinViewState extends State<_IngresarPinView> {
     } else {
       setState(() => _error = 'PIN incorrecto');
     }
+  }
+
+  /// No se puede "mandar" el PIN olvidado (solo se guarda su hash, nunca en
+  /// texto plano), así que para reiniciarlo se confirma identidad con la
+  /// contraseña de la cuenta y ahí mismo se deja poner un PIN nuevo: sin
+  /// depender de un correo ni de infraestructura extra.
+  Future<void> _olvidePin() async {
+    final passCtrl = TextEditingController();
+    String? errorDialog;
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: const Text('¿Olvidaste tu PIN?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Confirma la contraseña de tu cuenta para poner un PIN nuevo.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passCtrl,
+                autofocus: true,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Contraseña de tu cuenta'),
+              ),
+              if (errorDialog != null) ...[
+                const SizedBox(height: 8),
+                Text(errorDialog!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: () async {
+                final email = FirebaseAuth.instance.currentUser?.email;
+                if (email == null || passCtrl.text.isEmpty) return;
+                setStateDialog(() => errorDialog = null);
+                try {
+                  final cred = EmailAuthProvider.credential(email: email, password: passCtrl.text);
+                  await FirebaseAuth.instance.currentUser!.reauthenticateWithCredential(cred);
+                  if (context.mounted) Navigator.pop(context, true);
+                } on FirebaseAuthException catch (e) {
+                  setStateDialog(() => errorDialog = e.message ?? 'Contraseña incorrecta');
+                }
+              },
+              child: const Text('Confirmar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmado == true) widget.onOlvidePin();
   }
 
   @override
@@ -192,6 +268,10 @@ class _IngresarPinViewState extends State<_IngresarPinView> {
             if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 12),
             FilledButton(onPressed: _verificar, child: const Text('Desbloquear')),
+            TextButton(
+              onPressed: _verificandoContrasena ? null : _olvidePin,
+              child: const Text('¿Olvidaste tu PIN?'),
+            ),
           ],
         ),
       ),
@@ -250,40 +330,82 @@ class _ListaBovedaState extends State<_ListaBoveda> {
     }
   }
 
-  /// Atajo rápido para cuando el link de un capítulo deja de servir (igual
-  /// que en Biblioteca): evita tener que abrir el formulario completo de
-  /// "Editar" solo para pegar el link nuevo.
-  Future<void> _actualizarLink(BuildContext context, String uid, Lectura l) async {
-    final ctrl = TextEditingController(text: l.link);
-    final nuevoLink = await showDialog<String>(
+  /// Atajo rápido para cuando te quedaste en otro capítulo o el link dejó de
+  /// servir (igual que en Biblioteca): evita tener que abrir el formulario
+  /// completo de "Editar" solo para actualizar esto.
+  Future<void> _actualizarProgreso(BuildContext context, String uid, Lectura l) async {
+    final linkCtrl = TextEditingController(text: l.link);
+    final capCtrl = TextEditingController(text: l.capituloActual);
+    final resultado = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Actualizar link'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(labelText: 'Nuevo link del capítulo'),
+        title: const Text('Actualizar progreso'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: capCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Capítulo donde te quedaste'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: linkCtrl,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(labelText: 'Link del capítulo'),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            onPressed: () => Navigator.pop(
+              context,
+              {'link': linkCtrl.text.trim(), 'capitulo': capCtrl.text.trim()},
+            ),
             child: const Text('Guardar'),
           ),
         ],
       ),
     );
-    if (nuevoLink == null || nuevoLink.isEmpty || nuevoLink == l.link) return;
+    if (resultado == null) return;
+    final nuevoLink = resultado['link'] ?? '';
+    final nuevoCap = resultado['capitulo'] ?? '';
+
+    final cambioLink = nuevoLink.isNotEmpty && nuevoLink != l.link;
+    final cambioCap = nuevoCap.isNotEmpty && nuevoCap != l.capituloActual;
+    if (!cambioLink && !cambioCap) return;
+
+    final datos = <String, dynamic>{'actualizadoEn': FieldValue.serverTimestamp()};
+    if (cambioLink) datos['link'] = nuevoLink;
+    if (cambioCap) datos['capituloActual'] = nuevoCap;
+
     await FirebaseFirestore.instance
         .collection('usuarios')
         .doc(uid)
         .collection('lecturas')
         .doc(l.id)
-        .update({'link': nuevoLink, 'actualizadoEn': FieldValue.serverTimestamp()});
+        .update(datos);
+
+    if (cambioCap) {
+      await ObraService().actualizarCapituloMaximo(
+        tituloLectura: l.titulo,
+        capituloTexto: nuevoCap,
+        link: cambioLink ? nuevoLink : l.link,
+      );
+      await ObraService().actualizarResumenLector(
+        tituloLectura: l.titulo,
+        estado: l.estado,
+        plataforma: l.plataforma,
+        capituloActual: nuevoCap,
+      );
+    }
+
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Link actualizado')),
+        const SnackBar(content: Text('Progreso actualizado')),
       );
     }
   }
@@ -343,7 +465,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                           icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
                           onSelected: (v) {
                             if (v == 'abrir') _abrirLink(context, l.link);
-                            if (v == 'actualizar_link') _actualizarLink(context, uid, l);
+                            if (v == 'actualizar_link') _actualizarProgreso(context, uid, l);
                             if (v == 'editar') {
                               Navigator.push(
                                 context,
@@ -378,7 +500,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                           },
                           itemBuilder: (_) => [
                             const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
-                            const PopupMenuItem(value: 'actualizar_link', child: Text('Actualizar link')),
+                            const PopupMenuItem(value: 'actualizar_link', child: Text('Actualizar progreso')),
                             const PopupMenuItem(value: 'editar', child: Text('Editar')),
                             const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
                             const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),

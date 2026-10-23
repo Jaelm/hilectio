@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/lectura.dart';
 import '../services/obra_service.dart';
+import 'add_edit_lectura_screen.dart';
 import 'resumenes_screen.dart';
 
 /// Vista de detalle de una obra en Descubrir: portada grande, datos
@@ -79,6 +81,88 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
     } finally {
       if (mounted) setState(() => _cambiandoLike = false);
     }
+  }
+
+  /// Deja agregar esta obra a tu biblioteca directamente desde Descubrir,
+  /// sin tener que escribir el título ni los datos secundarios de nuevo (ya
+  /// se precargan desde el catálogo). Primero revisa si ya la tienes
+  /// registrada para no crear una lectura duplicada.
+  Future<void> _agregarABiblioteca(BuildContext context) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final titulo = (_obraData['tituloOriginal'] as String?) ?? widget.titulo;
+    final tipo = _obraData['tipo'] as String?;
+    final linkMaximo = _obraData['linkMaximo'] as String?;
+
+    final propias = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(uid)
+        .collection('lecturas')
+        .get();
+    QueryDocumentSnapshot<Map<String, dynamic>>? existente;
+    for (final d in propias.docs) {
+      final t = (d.data()['titulo'] as String? ?? '').trim();
+      if (t.isNotEmpty && normalizarTitulo(t) == normalizarTitulo(titulo)) {
+        existente = d;
+        break;
+      }
+    }
+
+    if (existente != null) {
+      if (!context.mounted) return;
+      final editar = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Ya la tienes registrada'),
+          content: const Text(
+            'Esta obra ya está en tu biblioteca. ¿Quieres editar tu progreso en vez de agregarla de nuevo?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Editar')),
+          ],
+        ),
+      );
+      if (editar == true && context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: Lectura.fromDoc(existente!))),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+    final estado = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('¿En qué etiqueta la quieres añadir?', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ...estadosLectura.entries.map(
+              (e) => ListTile(title: Text(e.value), onTap: () => Navigator.pop(context, e.key)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (estado == null || !context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddEditLecturaScreen(
+          tituloInicial: titulo,
+          tipoInicial: tipo,
+          estadoInicial: estado,
+          linkInicial: linkMaximo,
+        ),
+      ),
+    );
   }
 
   Widget _placeholderPortada() => Container(
@@ -199,13 +283,25 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
                       ],
                       const SizedBox(height: 14),
                       Center(
-                        child: OutlinedButton.icon(
-                          onPressed: _cambiandoLike ? null : _alternarLike,
-                          icon: Icon(
-                            _meGusta ? Icons.favorite : Icons.favorite_border,
-                            color: _meGusta ? Colors.red : null,
-                          ),
-                          label: Text(_likes == 1 ? '1 me gusta' : '$_likes me gusta'),
+                        child: Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _cambiandoLike ? null : _alternarLike,
+                              icon: Icon(
+                                _meGusta ? Icons.favorite : Icons.favorite_border,
+                                color: _meGusta ? Colors.red : null,
+                              ),
+                              label: Text(_likes == 1 ? '1 me gusta' : '$_likes me gusta'),
+                            ),
+                            FilledButton.icon(
+                              onPressed: () => _agregarABiblioteca(context),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Añadir a mi biblioteca'),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 28),

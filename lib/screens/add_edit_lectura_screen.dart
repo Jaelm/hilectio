@@ -32,7 +32,27 @@ String? _avisoLinkInestable(String link) {
 class AddEditLecturaScreen extends StatefulWidget {
   final Lectura? lectura;
 
-  const AddEditLecturaScreen({super.key, this.lectura});
+  /// Para precargar el formulario al agregar una obra desde Descubrir (ver
+  /// ObraDetalleScreen): título/tipo de la obra ya elegida y el estado que
+  /// el usuario escogió en el selector (leyendo/pendiente/...). Se ignoran
+  /// si [lectura] no es null (modo edición).
+  final String? tituloInicial;
+  final String? tipoInicial;
+  final String? estadoInicial;
+
+  /// Link del capítulo más alto que ya tiene registrado la comunidad para
+  /// esta obra (si existe), para que el usuario nuevo pueda ir directo a
+  /// seguir leyendo desde ahí en vez de buscarlo de cero.
+  final String? linkInicial;
+
+  const AddEditLecturaScreen({
+    super.key,
+    this.lectura,
+    this.tituloInicial,
+    this.tipoInicial,
+    this.estadoInicial,
+    this.linkInicial,
+  });
 
   @override
   State<AddEditLecturaScreen> createState() => _AddEditLecturaScreenState();
@@ -80,10 +100,15 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
   void initState() {
     super.initState();
     final l = widget.lectura;
-    _tituloCtrl = TextEditingController(text: l?.titulo ?? '');
+    _tituloCtrl = TextEditingController(text: l?.titulo ?? widget.tituloInicial ?? '');
     _plataformaCtrl = TextEditingController(text: l?.plataforma ?? '');
-    _capituloCtrl = TextEditingController(text: l?.capituloActual ?? '');
-    _linkCtrl = TextEditingController(text: l?.link ?? '');
+    // Al añadir desde Descubrir no se asume que el usuario ya está en el
+    // capítulo más alto que conoce la comunidad: se deja en 0 por defecto
+    // y es él quien lo actualiza cuando sepa en cuál se quedó.
+    _capituloCtrl = TextEditingController(
+      text: l?.capituloActual ?? (widget.tituloInicial != null ? '0' : ''),
+    );
+    _linkCtrl = TextEditingController(text: l?.link ?? widget.linkInicial ?? '');
     _frecuenciaCtrl = TextEditingController(text: (l?.frecuenciaDias ?? 7).toString());
     _tituloFocus.addListener(() {
       if (!_tituloFocus.hasFocus) _cargarCamposBloqueados();
@@ -93,6 +118,10 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       _esAdulto = l.esAdulto;
       _estadoLectura = l.estado;
       _cargarCamposBloqueados();
+    } else {
+      if (widget.tipoInicial != null) _tipo = widget.tipoInicial!;
+      if (widget.estadoInicial != null) _estadoLectura = widget.estadoInicial!;
+      if ((widget.tituloInicial ?? '').trim().isNotEmpty) _cargarCamposBloqueados();
     }
     _cargarSugerencias();
   }
@@ -312,6 +341,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       await ObraService().actualizarCapituloMaximo(
         tituloLectura: _tituloCtrl.text.trim(),
         capituloTexto: _capituloCtrl.text.trim(),
+        link: _linkCtrl.text.trim(),
       );
 
       // Mi propio "estoy leyendo esto" en la obra (ver ObraDetalleScreen):

@@ -16,6 +16,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   bool _saliendo = false;
+  late final PageController _pageController;
 
   static const _screens = [
     BibliotecaScreen(),
@@ -27,12 +28,19 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _index);
     // Anuncio "fijo" de la primera apertura del día (si corresponde). Se
     // dispara después del primer frame para no competir con el arranque de
     // la pantalla.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AdsService().mostrarAnuncioFijoSiCorresponde();
     });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   /// Al presionar "atrás" en la pantalla principal (que es salir de la
@@ -46,6 +54,15 @@ class _HomeShellState extends State<HomeShell> {
     _saliendo = false;
   }
 
+  void _irA(int i) {
+    setState(() => _index = i);
+    _pageController.animateToPage(
+      i,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -55,10 +72,16 @@ class _HomeShellState extends State<HomeShell> {
         _manejarSalida();
       },
       child: Scaffold(
-        body: SafeArea(child: _screens[_index]),
+        body: SafeArea(
+          child: PageView(
+            controller: _pageController,
+            onPageChanged: (i) => setState(() => _index = i),
+            children: _screens,
+          ),
+        ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          onDestinationSelected: _irA,
           destinations: const [
             NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Biblioteca'),
             NavigationDestination(icon: Icon(Icons.search), label: 'Descubrir'),

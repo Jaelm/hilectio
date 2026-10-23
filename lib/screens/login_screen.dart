@@ -38,6 +38,52 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _recuperarContrasena() async {
+    final ctrl = TextEditingController(text: _emailCtrl.text.trim());
+    final correo = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Recuperar contraseña'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Te mandamos un link para poner una contraseña nueva.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Tu correo'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+    if (correo == null || correo.isEmpty) return;
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: correo);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Revisa "$correo": te mandamos un link para poner una contraseña nueva.')),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'No se pudo enviar el correo de recuperación')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -86,6 +132,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ? '¿Ya tienes cuenta? Inicia sesión'
                     : '¿No tienes cuenta? Regístrate'),
               ),
+              if (!_isRegister)
+                TextButton(
+                  onPressed: _recuperarContrasena,
+                  child: const Text('¿Olvidaste tu contraseña?'),
+                ),
             ],
           ),
         ),

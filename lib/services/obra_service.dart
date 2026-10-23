@@ -261,6 +261,7 @@ class ObraService {
   Future<void> actualizarCapituloMaximo({
     required String tituloLectura,
     required String capituloTexto,
+    String? link,
   }) async {
     final capitulo = int.tryParse(capituloTexto.trim());
     if (capitulo == null) return;
@@ -269,7 +270,15 @@ class ObraService {
       final snap = await tx.get(obraRef);
       final actual = (snap.data()?['capituloMaximo'] as num?)?.toInt() ?? 0;
       if (capitulo > actual) {
-        tx.set(obraRef, {'capituloMaximo': capitulo}, SetOptions(merge: true));
+        final datos = <String, dynamic>{'capituloMaximo': capitulo};
+        // Se guarda junto al capítulo más alto el link desde donde se
+        // reportó, para que quien añada la obra después pueda ir directo
+        // a seguir leyendo desde ahí en vez de buscarlo de cero.
+        final linkLimpio = link?.trim();
+        if (linkLimpio != null && linkLimpio.isNotEmpty) {
+          datos['linkMaximo'] = linkLimpio;
+        }
+        tx.set(obraRef, datos, SetOptions(merge: true));
       }
     });
   }
@@ -294,12 +303,20 @@ class ObraService {
       final obraId = normalizarTitulo(titulo);
       final info = porObra.putIfAbsent(
         obraId,
-        () => {'titulo': titulo, 'tipo': data['tipo'], 'esAdulto': false, 'capituloMaximo': 0},
+        () => {
+          'titulo': titulo,
+          'tipo': data['tipo'],
+          'esAdulto': false,
+          'capituloMaximo': 0,
+          'linkMaximo': null,
+        },
       );
       if (data['esAdulto'] == true) info['esAdulto'] = true;
       final capitulo = int.tryParse((data['capituloActual'] as String? ?? '').trim());
       if (capitulo != null && capitulo > (info['capituloMaximo'] as int)) {
         info['capituloMaximo'] = capitulo;
+        final link = (data['link'] as String? ?? '').trim();
+        if (link.isNotEmpty) info['linkMaximo'] = link;
       }
     }
 
@@ -318,7 +335,10 @@ class ObraService {
       final maximoVisto = info['capituloMaximo'] as int;
       final maximoActual = (obraSnapAntes.data()?['capituloMaximo'] as num?)?.toInt() ?? 0;
       if (maximoVisto > maximoActual) {
-        await obraRef.set({'capituloMaximo': maximoVisto}, SetOptions(merge: true));
+        final datos = <String, dynamic>{'capituloMaximo': maximoVisto};
+        final linkVisto = info['linkMaximo'] as String?;
+        if (linkVisto != null) datos['linkMaximo'] = linkVisto;
+        await obraRef.set(datos, SetOptions(merge: true));
       }
 
       if (!obraSnapAntes.exists) creadas++;

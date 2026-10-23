@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -58,41 +59,83 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
     );
   }
 
-  /// Atajo rápido para cuando el link de un capítulo deja de servir (algunos
-  /// sitios como Olympus cambian el link del mismo capítulo todos los días):
-  /// evita tener que abrir el formulario completo de "Editar" solo para
-  /// pegar el link nuevo.
-  Future<void> _actualizarLink(BuildContext context, String uid, Lectura l) async {
-    final ctrl = TextEditingController(text: l.link);
-    final nuevoLink = await showDialog<String>(
+  /// Atajo rápido para cuando te quedaste en otro capítulo o el link dejó de
+  /// servir (algunos sitios como Olympus cambian el link del mismo capítulo
+  /// todos los días): evita tener que abrir el formulario completo de
+  /// "Editar" solo para actualizar esto.
+  Future<void> _actualizarProgreso(BuildContext context, String uid, Lectura l) async {
+    final linkCtrl = TextEditingController(text: l.link);
+    final capCtrl = TextEditingController(text: l.capituloActual);
+    final resultado = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Actualizar link'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(labelText: 'Nuevo link del capítulo'),
+        title: const Text('Actualizar progreso'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: capCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Capítulo donde te quedaste'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: linkCtrl,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(labelText: 'Link del capítulo'),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            onPressed: () => Navigator.pop(
+              context,
+              {'link': linkCtrl.text.trim(), 'capitulo': capCtrl.text.trim()},
+            ),
             child: const Text('Guardar'),
           ),
         ],
       ),
     );
-    if (nuevoLink == null || nuevoLink.isEmpty || nuevoLink == l.link) return;
+    if (resultado == null) return;
+    final nuevoLink = resultado['link'] ?? '';
+    final nuevoCap = resultado['capitulo'] ?? '';
+
+    final cambioLink = nuevoLink.isNotEmpty && nuevoLink != l.link;
+    final cambioCap = nuevoCap.isNotEmpty && nuevoCap != l.capituloActual;
+    if (!cambioLink && !cambioCap) return;
+
+    final datos = <String, dynamic>{'actualizadoEn': FieldValue.serverTimestamp()};
+    if (cambioLink) datos['link'] = nuevoLink;
+    if (cambioCap) datos['capituloActual'] = nuevoCap;
+
     await FirebaseFirestore.instance
         .collection('usuarios')
         .doc(uid)
         .collection('lecturas')
         .doc(l.id)
-        .update({'link': nuevoLink, 'actualizadoEn': FieldValue.serverTimestamp()});
+        .update(datos);
+
+    if (cambioCap) {
+      await ObraService().actualizarCapituloMaximo(
+        tituloLectura: l.titulo,
+        capituloTexto: nuevoCap,
+        link: cambioLink ? nuevoLink : l.link,
+      );
+      await ObraService().actualizarResumenLector(
+        tituloLectura: l.titulo,
+        estado: l.estado,
+        plataforma: l.plataforma,
+        capituloActual: nuevoCap,
+      );
+    }
+
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Link actualizado')),
+        const SnackBar(content: Text('Progreso actualizado')),
       );
     }
   }
@@ -166,7 +209,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                           icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
                           onSelected: (v) {
                             if (v == 'abrir') _abrirLink(context, l.link);
-                            if (v == 'actualizar_link') _actualizarLink(context, uid, l);
+                            if (v == 'actualizar_link') _actualizarProgreso(context, uid, l);
                             if (v == 'editar') {
                               Navigator.push(
                                 context,
@@ -192,7 +235,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                           },
                           itemBuilder: (_) => [
                             const PopupMenuItem(value: 'abrir', child: Text('Abrir link')),
-                            const PopupMenuItem(value: 'actualizar_link', child: Text('Actualizar link')),
+                            const PopupMenuItem(value: 'actualizar_link', child: Text('Actualizar progreso')),
                             const PopupMenuItem(value: 'editar', child: Text('Editar')),
                             const PopupMenuItem(value: 'resumenes', child: Text('Resúmenes')),
                             const PopupMenuItem(value: 'compartir', child: Text('Compartir estado')),
