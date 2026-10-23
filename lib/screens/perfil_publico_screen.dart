@@ -42,11 +42,11 @@ class PerfilPublicoScreen extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 30,
-                        backgroundColor: Colors.deepOrange.shade50,
+                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                         child: Icon(
                           iconosFoto[foto] ?? Icons.person,
                           size: 30,
-                          color: Colors.deepOrange,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -59,7 +59,7 @@ class PerfilPublicoScreen extends StatelessWidget {
                               Text(
                                 titulo,
                                 style: TextStyle(
-                                  color: Colors.deepOrange.shade400,
+                                  color: Theme.of(context).colorScheme.primary,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -69,7 +69,7 @@ class PerfilPublicoScreen extends StatelessWidget {
                       ),
                       Column(
                         children: [
-                          const Icon(Icons.local_fire_department, color: Colors.deepOrange),
+                          Icon(Icons.local_fire_department, color: Theme.of(context).colorScheme.primary),
                           Text('$racha'),
                         ],
                       ),

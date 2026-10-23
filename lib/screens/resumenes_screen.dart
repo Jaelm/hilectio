@@ -268,7 +268,7 @@ class _ResumenCardState extends State<_ResumenCard> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Colors.deepOrange.shade400,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],
@@ -301,7 +301,7 @@ class _ResumenCardState extends State<_ResumenCard> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Center(
@@ -335,7 +335,7 @@ class _ResumenCardState extends State<_ResumenCard> {
                               },
                         icon: Icon(
                           votado ? Icons.thumb_up : Icons.thumb_up_outlined,
-                          color: votado ? Colors.deepOrange : null,
+                          color: votado ? Theme.of(context).colorScheme.primary : null,
                         ),
                       ),
                       Text('${widget.votos}'),

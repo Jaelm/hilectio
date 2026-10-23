@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'boveda_screen.dart';
 import 'cuestionario_screen.dart';
+import 'apariencia_screen.dart';
 import 'admin_propuestas_screen.dart';
 import 'admin_resumenes_screen.dart';
 import 'admin_portadas_screen.dart';
@@ -167,11 +168,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                             onTap: () => _elegirFoto(context, uid, fotosObtenidas),
                             child: CircleAvatar(
                               radius: 30,
-                              backgroundColor: Colors.deepOrange.shade50,
+                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                               child: Icon(
                                 iconosFoto[fotoSeleccionada] ?? Icons.person,
                                 size: 30,
-                                color: Colors.deepOrange,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
                               ),
                             ),
                           ),
@@ -185,7 +186,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                                   Text(
                                     tituloSeleccionado,
                                     style: TextStyle(
-                                      color: Colors.deepOrange.shade400,
+                                      color: Theme.of(context).colorScheme.primary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -318,8 +319,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     children: [
                       Column(
                         children: [
-                          const Icon(Icons.local_fire_department,
-                              color: Colors.deepOrange, size: 32),
+                          Icon(Icons.local_fire_department,
+                              color: Theme.of(context).colorScheme.primary, size: 32),
                           const SizedBox(height: 4),
                           Text('$racha días',
                               style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -446,10 +447,20 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ListTile(
             leading: const Icon(Icons.quiz_outlined),
             title: const Text('Cuestionario semanal'),
-            subtitle: const Text('Responde y gana 20 tokens'),
+            subtitle: const Text('Elige tu dificultad y gana hasta 100 tokens'),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CuestionarioScreen()),
+            ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('Apariencia'),
+            subtitle: const Text('Modo claro/oscuro y color de la app'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AparienciaScreen()),
             ),
           ),
           const Divider(),
@@ -569,8 +580,9 @@ Future<void> _elegirFoto(BuildContext context, String uid, List<String> fotos) a
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircleAvatar(
-                    backgroundColor: Colors.deepOrange.shade50,
-                    child: Icon(iconosFoto[f] ?? Icons.person, color: Colors.deepOrange),
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    child: Icon(iconosFoto[f] ?? Icons.person,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer),
                   ),
                   const SizedBox(height: 4),
                   Text(f, style: const TextStyle(fontSize: 10), textAlign: TextAlign.center),

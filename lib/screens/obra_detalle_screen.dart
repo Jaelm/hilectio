@@ -216,9 +216,10 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
   }
 
   Widget _placeholderPortada() => Container(
-        color: Colors.deepOrange.shade50,
+        color: Theme.of(context).colorScheme.primaryContainer,
         alignment: Alignment.center,
-        child: const Icon(Icons.menu_book_outlined, color: Colors.deepOrange, size: 56),
+        child: Icon(Icons.menu_book_outlined,
+            color: Theme.of(context).colorScheme.onPrimaryContainer, size: 56),
       );
 
   Widget _seccion(String titulo, Widget contenido) => Padding(

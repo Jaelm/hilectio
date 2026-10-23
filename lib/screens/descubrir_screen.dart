@@ -25,6 +25,8 @@ class _FiltrosObras {
   String autor;
   String anio;
   String genero;
+  // null = todas, false = solo normales, true = solo +18.
+  bool? esAdulto;
 
   _FiltrosObras({
     this.tipo,
@@ -32,6 +34,7 @@ class _FiltrosObras {
     this.autor = '',
     this.anio = '',
     this.genero = '',
+    this.esAdulto,
   });
 
   _FiltrosObras copiar() => _FiltrosObras(
@@ -40,6 +43,7 @@ class _FiltrosObras {
         autor: autor,
         anio: anio,
         genero: genero,
+        esAdulto: esAdulto,
       );
 
   bool get hayFiltrosActivos =>
@@ -47,7 +51,8 @@ class _FiltrosObras {
       estado != null ||
       autor.trim().isNotEmpty ||
       anio.trim().isNotEmpty ||
-      genero.trim().isNotEmpty;
+      genero.trim().isNotEmpty ||
+      esAdulto != null;
 
   int get cantidadActivos => [
         tipo != null,
@@ -55,6 +60,7 @@ class _FiltrosObras {
         autor.trim().isNotEmpty,
         anio.trim().isNotEmpty,
         genero.trim().isNotEmpty,
+        esAdulto != null,
       ].where((e) => e).length;
 }
 
@@ -247,6 +253,24 @@ class _HojaFiltrosState extends State<_HojaFiltros> {
               keyboardType: TextInputType.number,
               onChanged: (v) => _f.anio = v,
             ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Contenido',
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SegmentedButton<bool?>(
+              segments: const [
+                ButtonSegment(value: null, label: Text('Todas')),
+                ButtonSegment(value: false, label: Text('Normales')),
+                ButtonSegment(value: true, label: Text('+18')),
+              ],
+              selected: {_f.esAdulto},
+              onSelectionChanged: (seleccion) => setState(() => _f.esAdulto = seleccion.first),
+            ),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: () => Navigator.pop(context, _f),
@@ -335,6 +359,10 @@ class _ObrasTab extends StatelessWidget {
 
           if (filtros.tipo != null && data['tipo'] != filtros.tipo) return false;
 
+          if (filtros.esAdulto != null && (data['esAdulto'] == true) != filtros.esAdulto) {
+            return false;
+          }
+
           final campos = Map<String, dynamic>.from(data['campos'] ?? {});
 
           if (filtros.estado != null) {
@@ -416,15 +444,17 @@ class _ObrasTab extends StatelessWidget {
                             imagenUrl,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
-                              color: Colors.deepOrange.shade50,
+                              color: Theme.of(context).colorScheme.primaryContainer,
                               alignment: Alignment.center,
-                              child: const Icon(Icons.menu_book_outlined, color: Colors.deepOrange),
+                              child: Icon(Icons.menu_book_outlined,
+                                  color: Theme.of(context).colorScheme.onPrimaryContainer),
                             ),
                           )
                         : Container(
-                            color: Colors.deepOrange.shade50,
+                            color: Theme.of(context).colorScheme.primaryContainer,
                             alignment: Alignment.center,
-                            child: const Icon(Icons.menu_book_outlined, color: Colors.deepOrange),
+                            child: Icon(Icons.menu_book_outlined,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer),
                           ),
                   ),
                 ),
@@ -537,8 +567,9 @@ class _UsuariosTab extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: Colors.deepOrange.shade50,
-                      child: Icon(iconosFoto[foto] ?? Icons.person, color: Colors.deepOrange),
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      child: Icon(iconosFoto[foto] ?? Icons.person,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer),
                     ),
                     title: Text(apodo),
                     trailing: const Icon(Icons.chevron_right),

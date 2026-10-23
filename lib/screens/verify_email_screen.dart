@@ -79,7 +79,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.mark_email_unread_outlined, size: 64, color: Colors.deepOrange),
+              Icon(Icons.mark_email_unread_outlined,
+                  size: 64, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 16),
               const Text(
                 'Confirma tu correo',
@@ -95,7 +96,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 Text(
                   _mensaje!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.deepOrange),
+                  style: TextStyle(color: Theme.of(context).colorScheme.primary),
                 ),
                 const SizedBox(height: 12),
               ],

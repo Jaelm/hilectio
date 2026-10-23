@@ -10,6 +10,7 @@ import 'screens/verify_email_screen.dart';
 import 'screens/elegir_apodo_screen.dart';
 import 'services/notification_service.dart';
 import 'services/ads_service.dart';
+import 'services/tema_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,23 +25,33 @@ void main() async {
   await MobileAds.instance.updateRequestConfiguration(
     RequestConfiguration(testDeviceIds: dispositivosDePrueba),
   );
+  await TemaController.instance.cargar();
   runApp(const HilectioApp());
 }
 
 class HilectioApp extends StatelessWidget {
   const HilectioApp({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Hilectio',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFFC96F4A),
+  ThemeData _construirTema(Color semilla, Brightness brillo) => ThemeData(
+        colorSchemeSeed: semilla,
+        brightness: brillo,
         useMaterial3: true,
         fontFamily: 'Helvetica Neue',
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = TemaController.instance;
+    return AnimatedBuilder(
+      animation: tema,
+      builder: (context, _) => MaterialApp(
+        title: 'Hilectio',
+        debugShowCheckedModeBanner: false,
+        themeMode: tema.modo,
+        theme: _construirTema(tema.paleta.semilla, Brightness.light),
+        darkTheme: _construirTema(tema.paleta.semilla, Brightness.dark),
+        home: const AuthGate(),
       ),
-      home: const AuthGate(),
     );
   }
 }

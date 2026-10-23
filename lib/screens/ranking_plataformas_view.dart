@@ -127,7 +127,7 @@ class _RankingPlataformasViewState extends State<RankingPlataformasView> {
             child: ListTile(
               leading: CircleAvatar(
                 radius: 22,
-                backgroundColor: Colors.deepOrange.shade50,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 child: ClipOval(
                   child: (s.imagenUrl != null && s.imagenUrl!.isNotEmpty)
                       ? Image.network(
@@ -135,10 +135,10 @@ class _RankingPlataformasViewState extends State<RankingPlataformasView> {
                           width: 44,
                           height: 44,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.public, color: Colors.deepOrange),
+                          errorBuilder: (_, __, ___) => Icon(Icons.public,
+                              color: Theme.of(context).colorScheme.onPrimaryContainer),
                         )
-                      : const Icon(Icons.public, color: Colors.deepOrange),
+                      : Icon(Icons.public, color: Theme.of(context).colorScheme.onPrimaryContainer),
                 ),
               ),
               title: Text(s.etiqueta),

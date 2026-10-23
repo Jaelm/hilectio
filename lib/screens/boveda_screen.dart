@@ -418,13 +418,17 @@ class _ListaBovedaState extends State<_ListaBoveda> {
     }
   }
 
-  Widget _placeholderPortada() => Container(
+  Widget _placeholderPortada(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: Colors.deepOrange.shade50,
+          color: Theme.of(context).colorScheme.primaryContainer,
           borderRadius: BorderRadius.circular(10),
         ),
         alignment: Alignment.center,
-        child: const Icon(Icons.menu_book_outlined, color: Colors.deepOrange, size: 32),
+        child: Icon(
+          Icons.menu_book_outlined,
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
+          size: 32,
+        ),
       );
 
   Widget _tarjetaLectura(BuildContext context, String uid, Lectura l) {
@@ -457,10 +461,10 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                               imagenUrl,
                               fit: BoxFit.cover,
                               loadingBuilder: (context, child, progress) =>
-                                  progress == null ? child : _placeholderPortada(),
-                              errorBuilder: (_, __, ___) => _placeholderPortada(),
+                                  progress == null ? child : _placeholderPortada(context),
+                              errorBuilder: (_, __, ___) => _placeholderPortada(context),
                             )
-                          : _placeholderPortada(),
+                          : _placeholderPortada(context),
                     ),
                     Positioned(
                       top: 2,

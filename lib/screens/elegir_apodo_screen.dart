@@ -50,7 +50,7 @@ class _ElegirApodoScreenState extends State<ElegirApodoScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.badge_outlined, size: 48, color: Colors.deepOrange),
+              Icon(Icons.badge_outlined, size: 48, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 16),
               const Text(
                 '¡Elige tu apodo!',
