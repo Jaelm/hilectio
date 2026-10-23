@@ -313,6 +313,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
       estado: nuevoEstado,
       plataforma: l.plataforma,
       capituloActual: l.capituloActual,
+      link: l.link,
     );
   }
 
@@ -395,11 +396,18 @@ class _ListaBovedaState extends State<_ListaBoveda> {
         capituloTexto: nuevoCap,
         link: cambioLink ? nuevoLink : l.link,
       );
+    }
+    // Se refresca el resumen del lector aunque solo haya cambiado el link
+    // (sin cambiar de capítulo): es la fuente de donde sale el link que se
+    // le sugiere a otros al añadir esta obra desde Descubrir, así que debe
+    // quedar al día incluso si el capítulo no se tocó.
+    if (cambioCap || cambioLink) {
       await ObraService().actualizarResumenLector(
         tituloLectura: l.titulo,
         estado: l.estado,
         plataforma: l.plataforma,
-        capituloActual: nuevoCap,
+        capituloActual: cambioCap ? nuevoCap : l.capituloActual,
+        link: cambioLink ? nuevoLink : l.link,
       );
     }
 

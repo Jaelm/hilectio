@@ -92,7 +92,6 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
     if (uid == null) return;
     final titulo = (_obraData['tituloOriginal'] as String?) ?? widget.titulo;
     final tipo = _obraData['tipo'] as String?;
-    final linkMaximo = _obraData['linkMaximo'] as String?;
 
     final propias = await FirebaseFirestore.instance
         .collection('usuarios')
@@ -152,6 +151,55 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
     );
     if (estado == null || !context.mounted) return;
 
+    // Entre los lectores actuales, agrupa por plataforma y se queda, por
+    // cada una, con el del capítulo más bajo (el "menos adelantado"): así
+    // quien se une ahora parte de un link real donde alguien va más atrás,
+    // en vez de saltar directo al capítulo más reciente de la comunidad.
+    final porPlataforma = <String, LectorDeObra>{};
+    for (final lector in _lectores) {
+      if (lector.plataforma.isEmpty || lector.link.isEmpty) continue;
+      final capitulo = int.tryParse(lector.capituloActual);
+      final guardado = porPlataforma[lector.plataforma];
+      final capituloGuardado = guardado == null ? null : int.tryParse(guardado.capituloActual);
+      final esMenor = guardado == null ||
+          (capitulo != null && (capituloGuardado == null || capitulo < capituloGuardado));
+      if (esMenor) porPlataforma[lector.plataforma] = lector;
+    }
+
+    LectorDeObra? elegido;
+    if (porPlataforma.length == 1) {
+      elegido = porPlataforma.values.first;
+    } else if (porPlataforma.length > 1) {
+      if (!context.mounted) return;
+      final plataformaElegida = await showModalBottomSheet<String>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  '¿En qué plataforma la quieres leer?',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              ...porPlataforma.entries.map(
+                (e) => ListTile(
+                  title: Text(e.key),
+                  subtitle: Text('Alguien va por el capítulo ${e.value.capituloActual}'),
+                  onTap: () => Navigator.pop(context, e.key),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (plataformaElegida == null || !context.mounted) return;
+      elegido = porPlataforma[plataformaElegida];
+    }
+
+    if (!context.mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -159,7 +207,9 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
           tituloInicial: titulo,
           tipoInicial: tipo,
           estadoInicial: estado,
-          linkInicial: linkMaximo,
+          plataformaInicial: elegido?.plataforma,
+          linkInicial: elegido?.link,
+          capituloInicial: elegido?.capituloActual,
         ),
       ),
     );

@@ -40,10 +40,13 @@ class AddEditLecturaScreen extends StatefulWidget {
   final String? tipoInicial;
   final String? estadoInicial;
 
-  /// Link del capítulo más alto que ya tiene registrado la comunidad para
-  /// esta obra (si existe), para que el usuario nuevo pueda ir directo a
-  /// seguir leyendo desde ahí en vez de buscarlo de cero.
+  /// Plataforma y link que ya está usando algún lector de la obra (el menos
+  /// adelantado, entre los que leen en la plataforma elegida), para que el
+  /// usuario nuevo pueda ir directo a seguir leyendo desde ahí en vez de
+  /// buscarlo de cero. Ver ObraDetalleScreen._agregarABiblioteca.
+  final String? plataformaInicial;
   final String? linkInicial;
+  final String? capituloInicial;
 
   const AddEditLecturaScreen({
     super.key,
@@ -51,7 +54,9 @@ class AddEditLecturaScreen extends StatefulWidget {
     this.tituloInicial,
     this.tipoInicial,
     this.estadoInicial,
+    this.plataformaInicial,
     this.linkInicial,
+    this.capituloInicial,
   });
 
   @override
@@ -101,12 +106,16 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     super.initState();
     final l = widget.lectura;
     _tituloCtrl = TextEditingController(text: l?.titulo ?? widget.tituloInicial ?? '');
-    _plataformaCtrl = TextEditingController(text: l?.plataforma ?? '');
-    // Al añadir desde Descubrir no se asume que el usuario ya está en el
-    // capítulo más alto que conoce la comunidad: se deja en 0 por defecto
-    // y es él quien lo actualiza cuando sepa en cuál se quedó.
+    _plataformaCtrl = TextEditingController(text: l?.plataforma ?? widget.plataformaInicial ?? '');
+    // Al añadir desde Descubrir se precarga con el progreso de un lector
+    // real (el menos adelantado en la plataforma elegida), para que el
+    // link y el capítulo correspondan entre sí. Si no hay ningún lector
+    // con esos datos todavía, se deja en 0 y es el usuario quien lo
+    // actualiza cuando sepa en cuál se quedó.
     _capituloCtrl = TextEditingController(
-      text: l?.capituloActual ?? (widget.tituloInicial != null ? '0' : ''),
+      text: l?.capituloActual ??
+          widget.capituloInicial ??
+          (widget.tituloInicial != null ? '0' : ''),
     );
     _linkCtrl = TextEditingController(text: l?.link ?? widget.linkInicial ?? '');
     _frecuenciaCtrl = TextEditingController(text: (l?.frecuenciaDias ?? 7).toString());
@@ -358,6 +367,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
         estado: _estadoLectura,
         plataforma: _plataformaCtrl.text.trim(),
         capituloActual: _capituloCtrl.text.trim(),
+        link: _linkCtrl.text.trim(),
       );
 
       if (valoresObra.values.any((v) => v.trim().isNotEmpty)) {

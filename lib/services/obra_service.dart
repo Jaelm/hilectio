@@ -194,12 +194,14 @@ class LectorDeObra {
   final String plataforma;
   final String capituloActual;
   final String estado;
+  final String link;
 
   LectorDeObra({
     required this.uid,
     required this.plataforma,
     required this.capituloActual,
     required this.estado,
+    required this.link,
   });
 }
 
@@ -359,6 +361,7 @@ class ObraService {
         'estado': estadosLectura.containsKey(data['estado']) ? data['estado'] : 'leyendo',
         'plataforma': (data['plataforma'] as String? ?? '').trim(),
         'capituloActual': (data['capituloActual'] as String? ?? '').trim(),
+        'link': (data['link'] as String? ?? '').trim(),
         'actualizadoEn': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     }
@@ -378,6 +381,7 @@ class ObraService {
     required String estado,
     required String plataforma,
     required String capituloActual,
+    required String link,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -386,6 +390,7 @@ class ObraService {
       'estado': estado,
       'plataforma': plataforma.trim(),
       'capituloActual': capituloActual.trim(),
+      'link': link.trim(),
       'actualizadoEn': FieldValue.serverTimestamp(),
     });
   }
@@ -416,6 +421,7 @@ class ObraService {
         plataforma: (data['plataforma'] as String? ?? '').trim(),
         capituloActual: (data['capituloActual'] as String? ?? '').trim(),
         estado: estadosLectura.containsKey(data['estado']) ? data['estado'] as String : 'leyendo',
+        link: (data['link'] as String? ?? '').trim(),
       );
     }).toList();
   }

@@ -88,56 +88,69 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Image.asset('assets/icon/icon_foreground.png', height: 120),
-              const SizedBox(height: 12),
-              Text(
-                'Hilectio',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              // Dentro de un SingleChildScrollView, mainAxisAlignment.center
+              // no hace nada por sí solo (el scroll le da altura sin límite
+              // a la columna, así que ella se encoge a su contenido y queda
+              // pegada arriba). Forzando una altura mínima igual a la de la
+              // pantalla, el Column sí tiene de dónde centrarse cuando el
+              // contenido entra completo, y sigue pudiendo hacer scroll si
+              // no entra (ej. con el teclado abierto).
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Image.asset('assets/icon/icon_foreground.png', height: 120),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Hilectio',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 32),
+                    TextField(
+                      controller: _emailCtrl,
+                      decoration: const InputDecoration(labelText: 'Correo'),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _passCtrl,
+                      decoration: const InputDecoration(labelText: 'Contraseña'),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 16),
+                    if (_error != null)
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: _loading ? null : _submit,
+                      child: _loading
+                          ? const CircularProgressIndicator()
+                          : Text(_isRegister ? 'Registrarme' : 'Entrar'),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _isRegister = !_isRegister),
+                      child: Text(_isRegister
+                          ? '¿Ya tienes cuenta? Inicia sesión'
+                          : '¿No tienes cuenta? Regístrate'),
+                    ),
+                    if (!_isRegister)
+                      TextButton(
+                        onPressed: _recuperarContrasena,
+                        child: const Text('¿Olvidaste tu contraseña?'),
+                      ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _emailCtrl,
-                decoration: const InputDecoration(labelText: 'Correo'),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _passCtrl,
-
-                decoration: const InputDecoration(labelText: 'Contraseña'),
-                obscureText: true,
-              ),
-              const SizedBox(height: 16),
-              if (_error != null)
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : Text(_isRegister ? 'Registrarme' : 'Entrar'),
-              ),
-              TextButton(
-                onPressed: () => setState(() => _isRegister = !_isRegister),
-                child: Text(_isRegister
-                    ? '¿Ya tienes cuenta? Inicia sesión'
-                    : '¿No tienes cuenta? Regístrate'),
-              ),
-              if (!_isRegister)
-                TextButton(
-                  onPressed: _recuperarContrasena,
-                  child: const Text('¿Olvidaste tu contraseña?'),
-                ),
-            ],
+            ),
           ),
         ),
       ),
