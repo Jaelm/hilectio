@@ -8,7 +8,6 @@ import 'cuestionario_screen.dart';
 import 'apariencia_screen.dart';
 import 'admin_propuestas_screen.dart';
 import 'admin_resumenes_screen.dart';
-import 'admin_portadas_screen.dart';
 import 'admin_plataformas_screen.dart';
 import 'admin_fusionar_obras_screen.dart';
 import '../models/lectura.dart' show estadosLectura;
@@ -57,8 +56,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
   /// Backfill de un solo uso: recorre todas las lecturas de todos los
   /// usuarios y registra en el catálogo `obras` cualquier título que todavía
   /// no esté ahí (sobre todo lecturas +18 guardadas antes de que esto se
-  /// hiciera automático), para que aparezcan en Descubrir y con su portada en
-  /// la Bóveda. Pide confirmación porque recorre toda la base de datos.
+  /// hiciera automático), para que aparezcan en Descubrir y en la Bóveda.
+  /// Pide confirmación porque recorre toda la base de datos.
   Future<void> _ejecutarBackfillObras(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -507,15 +506,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AdminResumenesScreen()),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.image_outlined),
-              title: const Text('Portadas pendientes'),
-              subtitle: const Text('Obras del catálogo que todavía no tienen portada'),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AdminPortadasScreen()),
               ),
             ),
             ListTile(

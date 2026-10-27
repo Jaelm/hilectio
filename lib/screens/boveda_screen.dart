@@ -418,6 +418,15 @@ class _ListaBovedaState extends State<_ListaBoveda> {
     }
   }
 
+  /// Imagen genérica de portada (una foto de animal, sin relación con la
+  /// obra) asignada según el título. Si por algo el asset no carga, cae al
+  /// ícono de respaldo en vez de romper la pantalla.
+  Widget _portadaObra(BuildContext context, String titulo) => Image.asset(
+        rutaPortadaGenerica(titulo),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholderPortada(context),
+      );
+
   Widget _placeholderPortada(BuildContext context) => Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.primaryContainer,
@@ -436,7 +445,6 @@ class _ListaBovedaState extends State<_ListaBoveda> {
       future: FirebaseFirestore.instance.collection('obras').doc(normalizarTitulo(l.titulo)).get(),
       builder: (context, obraSnap) {
         final obraData = (obraSnap.data?.data()) ?? <String, dynamic>{};
-        final imagenUrl = obraData['imagenUrl'] as String?;
         final capituloMaximo = (obraData['capituloMaximo'] as num?)?.toInt();
         final total = capituloMaximo?.toString();
         final etiquetaProgreso =
@@ -456,15 +464,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: (imagenUrl != null && imagenUrl.isNotEmpty)
-                          ? Image.network(
-                              imagenUrl,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (context, child, progress) =>
-                                  progress == null ? child : _placeholderPortada(context),
-                              errorBuilder: (_, __, ___) => _placeholderPortada(context),
-                            )
-                          : _placeholderPortada(context),
+                      child: _portadaObra(context, l.titulo),
                     ),
                     Positioned(
                       top: 2,

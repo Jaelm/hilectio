@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart' show iconosFoto;
 import 'obra_detalle_screen.dart';
 import 'perfil_publico_screen.dart';
 import 'ranking_plataformas_view.dart';
-
-const String _correoAdmin = 'jhormanskic98@gmail.com';
 
 /// Pestaña "Descubrir": busca obras ya registradas en la plataforma (para
 /// llegar directo a sus resúmenes) y usuarios por apodo (para llegar a su
@@ -283,54 +280,6 @@ class _HojaFiltrosState extends State<_HojaFiltros> {
   }
 }
 
-Future<void> _editarPortada(
-  BuildContext context, {
-  required String titulo,
-  String? urlActual,
-}) async {
-  final ctrl = TextEditingController(text: urlActual ?? '');
-  final nuevoUrl = await showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Portada de "$titulo"'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: ctrl,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: 'Link de la imagen',
-              helperText:
-                  'Puede ser el link de "Compartir" de Drive (asegúrate de que '
-                  'el archivo esté en "Cualquiera con el link puede ver") o el '
-                  'link directo de cualquier otro sitio.',
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-          child: const Text('Guardar'),
-        ),
-      ],
-    ),
-  );
-  if (nuevoUrl == null || nuevoUrl.isEmpty) return;
-  try {
-    await ObraService().actualizarPortada(tituloLectura: titulo, urlImagen: nuevoUrl);
-  } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo guardar la portada: $e')),
-      );
-    }
-  }
-}
-
 class _ObrasTab extends StatelessWidget {
   final String busqueda;
   final _FiltrosObras filtros;
@@ -405,14 +354,12 @@ class _ObrasTab extends StatelessWidget {
             ),
           );
         }
-        final esAdmin = FirebaseAuth.instance.currentUser?.email == _correoAdmin;
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: filtradas.length,
           itemBuilder: (context, i) {
             final data = filtradas[i].data();
             final titulo = data['tituloOriginal'] as String? ?? filtradas[i].id;
-            final imagenUrl = data['imagenUrl'] as String?;
             final esAdulto = data['esAdulto'] == true;
             final campos = Map<String, dynamic>.from(data['campos'] ?? {});
 
@@ -439,23 +386,16 @@ class _ObrasTab extends StatelessWidget {
                   height: 58,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: (imagenUrl != null && imagenUrl.isNotEmpty)
-                        ? Image.network(
-                            imagenUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Theme.of(context).colorScheme.primaryContainer,
-                              alignment: Alignment.center,
-                              child: Icon(Icons.menu_book_outlined,
-                                  color: Theme.of(context).colorScheme.onPrimaryContainer),
-                            ),
-                          )
-                        : Container(
-                            color: Theme.of(context).colorScheme.primaryContainer,
-                            alignment: Alignment.center,
-                            child: Icon(Icons.menu_book_outlined,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer),
-                          ),
+                    child: Image.asset(
+                      rutaPortadaGenerica(titulo),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        alignment: Alignment.center,
+                        child: Icon(Icons.menu_book_outlined,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer),
+                      ),
+                    ),
                   ),
                 ),
                 title: Row(
@@ -485,18 +425,7 @@ class _ObrasTab extends StatelessWidget {
                   ],
                 ),
                 subtitle: partesSubtitulo.isNotEmpty ? Text(partesSubtitulo.join(' · ')) : null,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (esAdmin)
-                      IconButton(
-                        icon: const Icon(Icons.image_outlined, size: 20),
-                        tooltip: 'Cambiar portada',
-                        onPressed: () => _editarPortada(context, titulo: titulo, urlActual: imagenUrl),
-                      ),
-                    const Icon(Icons.chevron_right),
-                  ],
-                ),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => ObraDetalleScreen(titulo: titulo)),

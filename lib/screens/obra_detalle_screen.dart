@@ -215,6 +215,15 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
     );
   }
 
+  /// Imagen genérica de portada (una foto de animal, sin relación con la
+  /// obra) asignada según el título. Si por algo el asset no carga, cae al
+  /// ícono de respaldo en vez de romper la pantalla.
+  Widget _portadaObra(String titulo) => Image.asset(
+        rutaPortadaGenerica(titulo),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholderPortada(),
+      );
+
   Widget _placeholderPortada() => Container(
         color: Theme.of(context).colorScheme.primaryContainer,
         alignment: Alignment.center,
@@ -252,7 +261,6 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
   @override
   Widget build(BuildContext context) {
     final titulo = (_obraData['tituloOriginal'] as String?) ?? widget.titulo;
-    final imagenUrl = _obraData['imagenUrl'] as String?;
     final campos = Map<String, dynamic>.from(_obraData['campos'] ?? {});
     final capituloMaximo = (_obraData['capituloMaximo'] as num?)?.toInt();
 
@@ -308,13 +316,7 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
                           child: SizedBox(
                             width: 190,
                             height: 265,
-                            child: (imagenUrl != null && imagenUrl.isNotEmpty)
-                                ? Image.network(
-                                    imagenUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _placeholderPortada(),
-                                  )
-                                : _placeholderPortada(),
+                            child: _portadaObra(titulo),
                           ),
                         ),
                       ),

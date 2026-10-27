@@ -1,17 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'obra_service.dart' show normalizarTitulo, convertirLinkDriveADirecto;
+import 'obra_service.dart' show normalizarTitulo;
 
 class EstadisticaPlataforma {
   final String clave;
   final String etiqueta;
-  final String? imagenUrl;
   final int usuarios;
   final int lecturas;
 
   EstadisticaPlataforma({
     required this.clave,
     required this.etiqueta,
-    required this.imagenUrl,
     required this.usuarios,
     required this.lecturas,
   });
@@ -24,9 +22,6 @@ class LecturaDePlataforma {
 }
 
 class PlataformasService {
-  CollectionReference<Map<String, dynamic>> get _plataformas =>
-      FirebaseFirestore.instance.collection('plataformas');
-
   /// Calcula, entre las lecturas no +18 de todos los usuarios, cuántos
   /// usuarios distintos usa cada plataforma y cuántas lecturas "únicas"
   /// tiene (esta pestaña es pública, así que las +18 quedan siempre fuera,
@@ -69,16 +64,10 @@ class PlataformasService {
       }
     }
 
-    final iconosSnap = await _plataformas.get();
-    final iconosPorClave = <String, String?>{
-      for (final d in iconosSnap.docs) d.id: d.data()['imagenUrl'] as String?,
-    };
-
     final lista = etiquetaPorClave.keys.map((clave) {
       return EstadisticaPlataforma(
         clave: clave,
         etiqueta: etiquetaPorClave[clave]!,
-        imagenUrl: iconosPorClave[clave],
         usuarios: usuariosPorClave[clave]?.length ?? 0,
         lecturas: lecturasPorClave[clave] ?? 0,
       );
@@ -109,19 +98,5 @@ class PlataformasService {
     final lista = vistos.entries.map((e) => LecturaDePlataforma(e.key, e.value)).toList()
       ..sort((a, b) => a.titulo.toLowerCase().compareTo(b.titulo.toLowerCase()));
     return lista;
-  }
-
-  /// Guarda/actualiza el ícono de una plataforma (solo admin, ver reglas de
-  /// Firestore). Acepta un link de Drive tal cual lo da "Compartir".
-  Future<void> actualizarIconoPlataforma({
-    required String clave,
-    required String etiqueta,
-    required String urlImagen,
-  }) async {
-    final urlFinal = convertirLinkDriveADirecto(urlImagen);
-    await _plataformas.doc(clave).set(
-      {'nombre': etiqueta, 'imagenUrl': urlFinal},
-      SetOptions(merge: true),
-    );
   }
 }

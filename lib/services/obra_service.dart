@@ -1,7 +1,31 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'tokens_service.dart';
 import '../models/lectura.dart' show estadosLectura;
+
+/// Cuántas imágenes genéricas hay en `assets/portadas/` (animal_01.webp ...
+/// animal_NN.webp). Si agregas o quitas imágenes de esa carpeta, actualiza
+/// este número — es lo único que hay que tocar para que el reparto se ajuste.
+const int cantidadPortadasGenericas = 60;
+
+/// Devuelve la ruta del asset de portada genérica (una foto de animal, sin
+/// relación con la obra) que le toca a este título. Es determinista: el
+/// mismo título siempre cae en la misma imagen, calculado a partir de un
+/// hash del título normalizado — no de un contador ni de algo que dependa
+/// del orden en que se registraron las obras. Con pocas obras varias van a
+/// compartir imagen; eso es esperado, no un error (igual que los avatares
+/// por defecto de otras apps).
+String rutaPortadaGenerica(String tituloOriginal) {
+  final normalizado = normalizarTitulo(tituloOriginal);
+  final hash = md5.convert(utf8.encode(normalizado)).bytes;
+  // Con los primeros 4 bytes del hash alcanza de sobra para repartir entre
+  // las ~60 imágenes sin sesgo perceptible.
+  final valor = (hash[0] << 24) | (hash[1] << 16) | (hash[2] << 8) | hash[3];
+  final indice = (valor.abs() % cantidadPortadasGenericas) + 1;
+  return 'assets/portadas/animal_${indice.toString().padLeft(2, '0')}.webp';
+}
 
 /// Etiquetas genéricas de respaldo (se usan donde no aplica el tipo de obra,
 /// como en la pantalla de admin). Para el formulario de llenado se usa
@@ -138,23 +162,6 @@ dynamic _parsearValorCampo(String campo, String textoCrudo) {
   return textoCrudo.trim();
 }
 
-/// Si [url] es un link para compartir de Google Drive (de la forma
-/// ".../file/d/ID/view..." o "...?id=ID..."), lo convierte al formato que sí
-/// se puede mostrar como imagen dentro de la app. Si no reconoce el patrón,
-/// devuelve la url tal cual (para admitir imágenes de otros sitios).
-String convertirLinkDriveADirecto(String url) {
-  final texto = url.trim();
-  final porCarpeta = RegExp(r'/d/([a-zA-Z0-9_-]+)').firstMatch(texto);
-  if (porCarpeta != null) {
-    return 'https://lh3.googleusercontent.com/d/${porCarpeta.group(1)}';
-  }
-  final porParametro = RegExp(r'[?&]id=([a-zA-Z0-9_-]+)').firstMatch(texto);
-  if (porParametro != null) {
-    return 'https://lh3.googleusercontent.com/d/${porParametro.group(1)}';
-  }
-  return texto;
-}
-
 String normalizarTitulo(String titulo) {
   var t = titulo.trim().toLowerCase();
   const acentos = {
@@ -239,18 +246,6 @@ class ObraService {
       },
       SetOptions(merge: true),
     );
-  }
-
-  /// Guarda/actualiza la portada de la obra (solo admin, ver reglas de
-  /// Firestore). Acepta un link de Drive tal cual lo da el botón "Compartir"
-  /// y lo convierte internamente al formato que sí se puede mostrar.
-  Future<void> actualizarPortada({
-    required String tituloLectura,
-    required String urlImagen,
-  }) async {
-    final obraId = normalizarTitulo(tituloLectura);
-    final urlFinal = convertirLinkDriveADirecto(urlImagen);
-    await _obras.doc(obraId).set({'imagenUrl': urlFinal}, SetOptions(merge: true));
   }
 
   /// Actualiza, si corresponde, el "capítulo más avanzado" conocido de esta
@@ -752,8 +747,6 @@ class ObraService {
       if (camposFusionados.isNotEmpty) 'campos': camposFusionados,
       if ((dataNuevo['tipo'] ?? dataViejo['tipo']) != null)
         'tipo': dataNuevo['tipo'] ?? dataViejo['tipo'],
-      if ((dataNuevo['imagenUrl'] ?? dataViejo['imagenUrl']) != null)
-        'imagenUrl': dataNuevo['imagenUrl'] ?? dataViejo['imagenUrl'],
     }, SetOptions(merge: true));
 
     // 2) Migra resúmenes y sus votos, uno por uno.

@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/plataformas_service.dart';
 import 'plataforma_detalle_screen.dart';
 
-const String _correoAdmin = 'jhormanskic98@gmail.com';
-
 /// Lista del ranking de plataformas (cuántos usuarios/lecturas tiene cada
 /// una). La usan tanto la pantalla de admin en Perfil como la pestaña
-/// "Plataformas" de Descubrir, que cualquier usuario puede ver. Solo el
-/// admin ve el botón para cambiar el ícono de cada plataforma.
+/// "Plataformas" de Descubrir, que cualquier usuario puede ver. El ícono es
+/// siempre genérico: no se admiten logos de terceros subidos por el admin,
+/// para no usar marcas registradas de las plataformas sin permiso.
 class RankingPlataformasView extends StatefulWidget {
   const RankingPlataformasView({super.key});
 
@@ -48,52 +46,8 @@ class _RankingPlataformasViewState extends State<RankingPlataformasView> {
     }
   }
 
-  Future<void> _editarIcono(EstadisticaPlataforma s) async {
-    final ctrl = TextEditingController(text: s.imagenUrl ?? '');
-    final nuevoUrl = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Ícono de "${s.etiqueta}"'),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            labelText: 'Link de la imagen',
-            helperText:
-                'Link de "Compartir" de Drive (archivo en "Cualquiera con el '
-                'link puede ver") o el link directo de otro sitio.',
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-    if (nuevoUrl == null || nuevoUrl.isEmpty) return;
-    try {
-      await PlataformasService().actualizarIconoPlataforma(
-        clave: s.clave,
-        etiqueta: s.etiqueta,
-        urlImagen: nuevoUrl,
-      );
-      _cargar();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo guardar: $e')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final esAdmin = FirebaseAuth.instance.currentUser?.email == _correoAdmin;
-
     if (_cargando) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -128,34 +82,11 @@ class _RankingPlataformasViewState extends State<RankingPlataformasView> {
               leading: CircleAvatar(
                 radius: 22,
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: ClipOval(
-                  child: (s.imagenUrl != null && s.imagenUrl!.isNotEmpty)
-                      ? Image.network(
-                          s.imagenUrl!,
-                          width: 44,
-                          height: 44,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(Icons.public,
-                              color: Theme.of(context).colorScheme.onPrimaryContainer),
-                        )
-                      : Icon(Icons.public, color: Theme.of(context).colorScheme.onPrimaryContainer),
-                ),
+                child: Icon(Icons.public, color: Theme.of(context).colorScheme.onPrimaryContainer),
               ),
               title: Text(s.etiqueta),
               subtitle: Text('${s.usuarios} usuario(s) · ${s.lecturas} lectura(s) registrada(s)'),
-              trailing: esAdmin
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.image_outlined),
-                          tooltip: 'Cambiar ícono',
-                          onPressed: () => _editarIcono(s),
-                        ),
-                        const Icon(Icons.chevron_right),
-                      ],
-                    )
-                  : const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
