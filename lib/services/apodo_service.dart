@@ -7,6 +7,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// tener el mismo apodo (incluyendo variaciones de mayúsculas/minúsculas).
 String normalizarApodo(String apodo) => apodo.trim().toLowerCase();
 
+/// Costo en tokens de cambiar el apodo (la primera vez que se elige, justo
+/// después de registrarse, siempre es gratis).
+const int costoCambioApodo = 30;
+
 class ApodoService {
   CollectionReference<Map<String, dynamic>> get _apodos =>
       FirebaseFirestore.instance.collection('apodos');
@@ -37,6 +41,18 @@ class ApodoService {
 
       final usuarioSnap = await tx.get(usuarioRef);
       final apodoAnterior = usuarioSnap.data()?['apodoClave'] as String?;
+      final tokensActuales = (usuarioSnap.data()?['tokens'] as num?)?.toInt() ?? 0;
+
+      final esPrimerApodo = apodoAnterior == null;
+      // Un cambio "de verdad" (no la primera vez, y realmente a un apodo
+      // distinto del que ya tenía) es lo único que cobra tokens.
+      final esCambioQueCobra = !esPrimerApodo && apodoAnterior != clave;
+
+      if (esCambioQueCobra && tokensActuales < costoCambioApodo) {
+        throw Exception(
+          'Necesitas $costoCambioApodo tokens para cambiar de apodo (tienes $tokensActuales).',
+        );
+      }
 
       if (apodoAnterior != null && apodoAnterior != clave) {
         tx.delete(_apodos.doc(apodoAnterior));
@@ -52,9 +68,10 @@ class ApodoService {
       // apodo (justo después de registrarse) y solo si todavía no tiene
       // tokens asignados, para no volver a dárselo si solo está cambiando
       // de apodo más adelante.
-      final esPrimerApodo = apodoAnterior == null;
       if (esPrimerApodo && usuarioSnap.data()?['tokens'] == null) {
         datosUsuario['tokens'] = 100;
+      } else if (esCambioQueCobra) {
+        datosUsuario['tokens'] = tokensActuales - costoCambioApodo;
       }
       tx.set(usuarioRef, datosUsuario, SetOptions(merge: true));
     });

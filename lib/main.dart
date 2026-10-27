@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/verify_email_screen.dart';
 import 'screens/elegir_apodo_screen.dart';
 import 'services/notification_service.dart';
-import 'services/ads_service.dart';
 import 'services/tema_service.dart';
 
 void main() async {
@@ -18,13 +16,6 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await NotificationService().init();
-  await MobileAds.instance.initialize();
-  // Marca este dispositivo (y los que agregues en ads_service.dart) como
-  // "de prueba": con el ID de anuncio real, siguen viendo anuncios pero
-  // etiquetados como prueba, sin riesgo para la cuenta de AdMob.
-  await MobileAds.instance.updateRequestConfiguration(
-    RequestConfiguration(testDeviceIds: dispositivosDePrueba),
-  );
   await TemaController.instance.cargar();
   runApp(const HilectioApp());
 }

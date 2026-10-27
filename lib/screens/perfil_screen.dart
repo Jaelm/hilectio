@@ -14,6 +14,7 @@ import '../models/lectura.dart' show estadosLectura;
 import '../services/obra_service.dart';
 import '../services/cofres_service.dart';
 import '../services/logros_service.dart';
+import '../services/cuenta_service.dart';
 import 'elegir_apodo_screen.dart';
 
 const String _urlDonaciones = 'https://ko-fi.com/bloomcebo';
@@ -130,6 +131,122 @@ class _PerfilScreenState extends State<PerfilScreen> {
     }, SetOptions(merge: true));
   }
 
+  /// Borra la cuenta para siempre: pide confirmar, luego reautentica con la
+  /// contraseña (Firebase lo exige para poder borrar la cuenta) y recién ahí
+  /// llama a [CuentaService.eliminarCuenta]. Si algo falla a mitad de camino
+  /// (sin conexión, etc.) no queda nada a medio borrar: Firestore se borra
+  /// primero y la cuenta de Auth al final.
+  Future<void> _eliminarCuenta(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Eliminar tu cuenta?'),
+        content: const Text(
+          'Esto borra tu perfil, tus lecturas, tus resúmenes y todo lo demás '
+          'para siempre. No se puede deshacer.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade100,
+              foregroundColor: Colors.red.shade900,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !context.mounted) return;
+
+    final passCtrl = TextEditingController();
+    String? errorDialog;
+    bool borrando = false;
+    final reautenticado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: const Text('Confirma tu contraseña'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Por seguridad, escribe tu contraseña para eliminar la cuenta.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Contraseña'),
+                onSubmitted: (_) {},
+              ),
+              if (errorDialog != null) ...[
+                const SizedBox(height: 8),
+                Text(errorDialog!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: borrando ? null : () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: borrando
+                  ? null
+                  : () async {
+                      final email = FirebaseAuth.instance.currentUser?.email;
+                      if (email == null || passCtrl.text.isEmpty) return;
+                      setStateDialog(() {
+                        errorDialog = null;
+                        borrando = true;
+                      });
+                      try {
+                        final cred = EmailAuthProvider.credential(
+                          email: email,
+                          password: passCtrl.text,
+                        );
+                        await FirebaseAuth.instance.currentUser!
+                            .reauthenticateWithCredential(cred);
+                        if (context.mounted) Navigator.pop(context, true);
+                      } on FirebaseAuthException catch (e) {
+                        setStateDialog(() {
+                          errorDialog = e.message ?? 'Contraseña incorrecta';
+                          borrando = false;
+                        });
+                      }
+                    },
+              child: borrando
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Confirmar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reautenticado != true || !context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Eliminando cuenta…')),
+    );
+    try {
+      await CuentaService().eliminarCuenta();
+      // No hace falta navegar: borrar la cuenta de Auth cierra la sesión y
+      // el listener de authStateChanges manda de vuelta al login.
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo eliminar la cuenta: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -226,7 +343,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
                         child: OutlinedButton.icon(
                           onPressed: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const ElegirApodoScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => ElegirApodoScreen(esCambio: true, apodoActual: apodo),
+                            ),
                           ),
                           icon: const Icon(Icons.badge_outlined, size: 18),
                           label: const Text('Cambiar apodo'),
@@ -541,6 +660,12 @@ class _PerfilScreenState extends State<PerfilScreen> {
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar sesión'),
             onTap: () => FirebaseAuth.instance.signOut(),
+          ),
+          ListTile(
+            leading: Icon(Icons.delete_forever, color: Colors.red.shade700),
+            title: Text('Eliminar cuenta', style: TextStyle(color: Colors.red.shade700)),
+            subtitle: const Text('Borra tu perfil y tus datos para siempre'),
+            onTap: () => _eliminarCuenta(context),
           ),
         ],
       ),

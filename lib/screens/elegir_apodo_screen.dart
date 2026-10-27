@@ -4,21 +4,53 @@ import '../services/apodo_service.dart';
 /// Pantalla para elegir (o cambiar) el apodo con el que el usuario se
 /// identifica ante los demás, en vez de su correo. Se usa tanto como paso
 /// obligatorio la primera vez (ver AuthGate en main.dart) como desde el
-/// botón "Cambiar apodo" en Perfil.
+/// botón "Cambiar apodo" en Perfil — en ese segundo caso [esCambio] debe ser
+/// true, para avisar del costo en tokens antes de guardar (la primera vez
+/// siempre es gratis).
 class ElegirApodoScreen extends StatefulWidget {
-  const ElegirApodoScreen({super.key});
+  final bool esCambio;
+  final String? apodoActual;
+
+  const ElegirApodoScreen({super.key, this.esCambio = false, this.apodoActual});
 
   @override
   State<ElegirApodoScreen> createState() => _ElegirApodoScreenState();
 }
 
 class _ElegirApodoScreenState extends State<ElegirApodoScreen> {
-  final _ctrl = TextEditingController();
+  late final TextEditingController _ctrl;
   String? _error;
   bool _guardando = false;
 
-  Future<void> _guardar() async {
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.esCambio ? (widget.apodoActual ?? '') : '');
+  }
+
+  Future<void> _confirmarYGuardar() async {
     if (_ctrl.text.trim().isEmpty) return;
+
+    // Si es un cambio real de apodo (no la primera vez, y realmente distinto
+    // al actual) se confirma el costo antes de intentar guardar, para que
+    // el usuario no se lleve la sorpresa después.
+    final cambiaDeVerdad =
+        widget.esCambio && _ctrl.text.trim().toLowerCase() != (widget.apodoActual ?? '').toLowerCase();
+    if (cambiaDeVerdad) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('¿Cambiar apodo?'),
+          content: Text('Cambiar tu apodo cuesta $costoCambioApodo tokens.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Cambiar')),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+    }
+
     setState(() {
       _guardando = true;
       _error = null;
@@ -52,24 +84,27 @@ class _ElegirApodoScreenState extends State<ElegirApodoScreen> {
             children: [
               Icon(Icons.badge_outlined, size: 48, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 16),
-              const Text(
-                '¡Elige tu apodo!',
+              Text(
+                widget.esCambio ? 'Cambia tu apodo' : '¡Elige tu apodo!',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Así te verán los demás en los resúmenes y en tu perfil, en vez de tu correo. '
-                'Puedes cambiarlo más adelante desde Perfil.',
+              Text(
+                widget.esCambio
+                    ? 'Puedes cambiarlo cuando quieras, pero a partir del primero cada '
+                        'cambio cuesta $costoCambioApodo tokens.'
+                    : 'Así te verán los demás en los resúmenes y en tu perfil, en vez de tu '
+                        'correo. Puedes cambiarlo más adelante desde Perfil.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 20),
               TextField(
                 controller: _ctrl,
                 maxLength: 20,
                 autofocus: true,
-                onSubmitted: (_) => _guardar(),
+                onSubmitted: (_) => _confirmarYGuardar(),
                 decoration: InputDecoration(
                   labelText: 'Apodo',
                   errorText: _error,
@@ -78,14 +113,14 @@ class _ElegirApodoScreenState extends State<ElegirApodoScreen> {
               ),
               const SizedBox(height: 8),
               FilledButton(
-                onPressed: _guardando ? null : _guardar,
+                onPressed: _guardando ? null : _confirmarYGuardar,
                 child: _guardando
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Continuar'),
+                    : Text(widget.esCambio ? 'Guardar' : 'Continuar'),
               ),
             ],
           ),

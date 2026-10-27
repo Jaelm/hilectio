@@ -22,8 +22,6 @@ class _FiltrosObras {
   String autor;
   String anio;
   String genero;
-  // null = todas, false = solo normales, true = solo +18.
-  bool? esAdulto;
 
   _FiltrosObras({
     this.tipo,
@@ -31,7 +29,6 @@ class _FiltrosObras {
     this.autor = '',
     this.anio = '',
     this.genero = '',
-    this.esAdulto,
   });
 
   _FiltrosObras copiar() => _FiltrosObras(
@@ -40,7 +37,6 @@ class _FiltrosObras {
         autor: autor,
         anio: anio,
         genero: genero,
-        esAdulto: esAdulto,
       );
 
   bool get hayFiltrosActivos =>
@@ -48,8 +44,7 @@ class _FiltrosObras {
       estado != null ||
       autor.trim().isNotEmpty ||
       anio.trim().isNotEmpty ||
-      genero.trim().isNotEmpty ||
-      esAdulto != null;
+      genero.trim().isNotEmpty;
 
   int get cantidadActivos => [
         tipo != null,
@@ -57,7 +52,6 @@ class _FiltrosObras {
         autor.trim().isNotEmpty,
         anio.trim().isNotEmpty,
         genero.trim().isNotEmpty,
-        esAdulto != null,
       ].where((e) => e).length;
 }
 
@@ -250,24 +244,6 @@ class _HojaFiltrosState extends State<_HojaFiltros> {
               keyboardType: TextInputType.number,
               onChanged: (v) => _f.anio = v,
             ),
-            const SizedBox(height: 14),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Contenido',
-                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
-            ),
-            const SizedBox(height: 6),
-            SegmentedButton<bool?>(
-              segments: const [
-                ButtonSegment(value: null, label: Text('Todas')),
-                ButtonSegment(value: false, label: Text('Normales')),
-                ButtonSegment(value: true, label: Text('+18')),
-              ],
-              selected: {_f.esAdulto},
-              onSelectionChanged: (seleccion) => setState(() => _f.esAdulto = seleccion.first),
-            ),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: () => Navigator.pop(context, _f),
@@ -303,14 +279,18 @@ class _ObrasTab extends StatelessWidget {
 
         final filtradas = docs.where((d) {
           final data = d.data();
+
+          // El catálogo público de Descubrir nunca muestra obras +18: esas
+          // solo se ven dentro de la Bóveda de cada usuario (protegida con
+          // PIN). Así nadie —incluyendo menores de edad con la cuenta— puede
+          // toparse con una obra +18 (ni su ficha, ni sus resúmenes) desde
+          // una búsqueda pública sin pasar por esa protección.
+          if (data['esAdulto'] == true) return false;
+
           final titulo = (data['tituloOriginal'] as String? ?? '').toLowerCase();
           if (busqueda.isNotEmpty && !titulo.contains(busqueda)) return false;
 
           if (filtros.tipo != null && data['tipo'] != filtros.tipo) return false;
-
-          if (filtros.esAdulto != null && (data['esAdulto'] == true) != filtros.esAdulto) {
-            return false;
-          }
 
           final campos = Map<String, dynamic>.from(data['campos'] ?? {});
 

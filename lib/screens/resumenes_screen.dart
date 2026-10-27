@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/resumenes_service.dart';
 import '../services/logros_service.dart';
 import '../services/obra_service.dart' show idObra;
+import '../services/bloqueo_service.dart';
 import 'perfil_publico_screen.dart';
 
 class ResumenesScreen extends StatefulWidget {
@@ -25,6 +26,20 @@ class ResumenesScreen extends StatefulWidget {
 
 class _ResumenesScreenState extends State<ResumenesScreen> {
   final _servicio = ResumenesService();
+
+  /// Uids que el usuario actual tiene bloqueados, para no mostrar sus
+  /// resúmenes en esta lista. Se carga una sola vez al entrar (no hace
+  /// falta que sea en vivo: si bloquea a alguien mientras está aquí, se
+  /// refleja la próxima vez que abra la pantalla).
+  Set<String> _bloqueados = {};
+
+  @override
+  void initState() {
+    super.initState();
+    BloqueoService().misBloqueados().then((bloqueados) {
+      if (mounted) setState(() => _bloqueados = bloqueados);
+    });
+  }
 
   Future<void> _abrirFormulario() async {
     final capituloCtrl = TextEditingController(text: widget.capituloSugerido);
@@ -149,10 +164,13 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
         stream: _servicio.resumenesDeObra(widget.tituloObra, widget.tipoObra),
         builder: (context, snap) {
           final docs = snap.data ?? [];
+          // Oculta los resúmenes de usuarios que YO tengo bloqueados.
+          final docsVisibles =
+              docs.where((d) => !_bloqueados.contains(d.data()['uid'])).toList();
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (docs.isEmpty) {
+          if (docsVisibles.isEmpty) {
             return const Center(
               child: Text(
                 'Todavía no hay resúmenes para esta obra.\nSé el primero en escribir uno.',
@@ -162,9 +180,9 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
           }
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
+            itemCount: docsVisibles.length,
             itemBuilder: (context, i) {
-              final doc = docs[i];
+              final doc = docsVisibles[i];
               final data = doc.data();
               return _ResumenCard(
                 obraId: obraId,
@@ -226,6 +244,43 @@ class _ResumenCard extends StatefulWidget {
 class _ResumenCardState extends State<_ResumenCard> {
   bool _revelado = false;
   bool _votando = false;
+  bool _reportando = false;
+
+  Future<void> _reportar() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Reportar este resumen?'),
+        content: const Text(
+          'Lo manda a revisión del admin (groserías, amenazas, spoiler sin '
+          'marcar, etc.). No se te notifica el resultado.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reportar')),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    setState(() => _reportando = true);
+    try {
+      await widget.servicio.reportarResumen(obraId: widget.obraId, resumenId: widget.resumenId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Resumen reportado. Gracias por avisar.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reportando = false);
+    }
+  }
 
   Future<void> _compartir() async {
     final texto = widget.contieneSpoiler && !_revelado
@@ -343,6 +398,24 @@ class _ResumenCardState extends State<_ResumenCard> {
                       ),
                       Text('${widget.votos}'),
                       const Spacer(),
+                      StreamBuilder<bool>(
+                        stream: widget.servicio.yaReporteStream(
+                          obraId: widget.obraId,
+                          resumenId: widget.resumenId,
+                        ),
+                        builder: (context, reporteSnap) {
+                          final yaReportado = reporteSnap.data ?? false;
+                          return IconButton(
+                            onPressed: (_reportando || yaReportado) ? null : _reportar,
+                            icon: Icon(
+                              yaReportado ? Icons.flag : Icons.flag_outlined,
+                              size: 20,
+                              color: yaReportado ? Colors.red.shade400 : null,
+                            ),
+                            tooltip: yaReportado ? 'Ya reportado' : 'Reportar',
+                          );
+                        },
+                      ),
                       IconButton(
                         onPressed: _compartir,
                         icon: const Icon(Icons.share_outlined, size: 20),

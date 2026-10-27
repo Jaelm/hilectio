@@ -174,6 +174,39 @@ class ResumenesService {
     }
   }
 
+  /// Reporta un resumen de otro usuario: lo manda a revisión del admin
+  /// (mismo estado 'pendiente_revision' que usa el filtro automático). No se
+  /// puede reportar el propio resumen, ni reportar el mismo dos veces (el
+  /// segundo intento lanza una excepción, igual que un voto duplicado).
+  Future<void> reportarResumen({required String obraId, required String resumenId}) async {
+    final user = FirebaseAuth.instance.currentUser!;
+    final resumenRef = _resumenes(obraId).doc(resumenId);
+    final reporteRef = resumenRef.collection('reportes').doc(user.uid);
+
+    final resumenSnap = await resumenRef.get();
+    final autorUid = resumenSnap.data()?['uid'] as String?;
+    if (autorUid == null) throw Exception('Ese resumen ya no existe.');
+    if (autorUid == user.uid) throw Exception('No puedes reportar tu propio resumen.');
+
+    final reporteSnap = await reporteRef.get();
+    if (reporteSnap.exists) throw Exception('Ya reportaste este resumen.');
+
+    await reporteRef.set({'reportadoEn': FieldValue.serverTimestamp()});
+    await resumenRef.update({'estado': 'pendiente_revision', 'reportado': true});
+  }
+
+  /// Si el usuario actual ya reportó este resumen (para deshabilitar el
+  /// botón y no dejarlo reportar dos veces).
+  Stream<bool> yaReporteStream({required String obraId, required String resumenId}) {
+    final user = FirebaseAuth.instance.currentUser!;
+    return _resumenes(obraId)
+        .doc(resumenId)
+        .collection('reportes')
+        .doc(user.uid)
+        .snapshots()
+        .map((s) => s.exists);
+  }
+
   Future<void> aprobarResumen({required String obraId, required String resumenId}) async {
     await _resumenes(obraId).doc(resumenId).update({
       'estado': 'activo',
