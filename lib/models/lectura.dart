@@ -8,6 +8,37 @@ const Map<String, String> estadosLectura = {
   'terminado': 'Terminado',
 };
 
+/// Días de la semana en que normalmente se actualiza la obra. Se usa en vez
+/// de "cada cuántos días" porque el usuario no siempre lee el mismo día que
+/// sale el capítulo (a veces lo lee uno o dos días después), así que contar
+/// desde "hoy" hace que el recordatorio se vaya desfasando con el tiempo;
+/// anclarlo a un día fijo de la semana no tiene ese problema.
+const Map<String, String> diasSemana = {
+  'lunes': 'Lunes',
+  'martes': 'Martes',
+  'miercoles': 'Miércoles',
+  'jueves': 'Jueves',
+  'viernes': 'Viernes',
+  'sabado': 'Sábado',
+  'domingo': 'Domingo',
+};
+
+/// Convierte la clave de [diasSemana] al número de día de `DateTime`
+/// (lunes = 1 ... domingo = 7). Si la clave no se reconoce, cae en lunes.
+int numeroDiaSemana(String dia) {
+  const orden = [
+    'lunes',
+    'martes',
+    'miercoles',
+    'jueves',
+    'viernes',
+    'sabado',
+    'domingo',
+  ];
+  final indice = orden.indexOf(dia);
+  return indice == -1 ? DateTime.monday : indice + 1;
+}
+
 class Lectura {
   final String id;
   final String titulo;
@@ -15,7 +46,7 @@ class Lectura {
   final String plataforma;
   final String capituloActual;
   final String link;
-  final int frecuenciaDias;
+  final String diaActualizacion; // clave de diasSemana
   final bool esAdulto;
   final String estado; // leyendo, pendiente, abandonado, terminado (ver estadosLectura)
   final DateTime actualizadoEn;
@@ -27,7 +58,7 @@ class Lectura {
     required this.plataforma,
     required this.capituloActual,
     required this.link,
-    required this.frecuenciaDias,
+    required this.diaActualizacion,
     required this.esAdulto,
     required this.estado,
     required this.actualizadoEn,
@@ -42,7 +73,8 @@ class Lectura {
       plataforma: data['plataforma'] ?? '',
       capituloActual: data['capituloActual'] ?? '',
       link: data['link'] ?? '',
-      frecuenciaDias: data['frecuenciaDias'] ?? 7,
+      diaActualizacion:
+          diasSemana.containsKey(data['diaActualizacion']) ? data['diaActualizacion'] : 'lunes',
       esAdulto: data['esAdulto'] ?? false,
       estado: estadosLectura.containsKey(data['estado']) ? data['estado'] : 'leyendo',
       actualizadoEn: (data['actualizadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -56,7 +88,7 @@ class Lectura {
       'plataforma': plataforma,
       'capituloActual': capituloActual,
       'link': link,
-      'frecuenciaDias': frecuenciaDias,
+      'diaActualizacion': diaActualizacion,
       'esAdulto': esAdulto,
       'estado': estado,
       'actualizadoEn': FieldValue.serverTimestamp(),

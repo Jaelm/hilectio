@@ -360,6 +360,7 @@ class _ObrasTab extends StatelessWidget {
           itemBuilder: (context, i) {
             final data = filtradas[i].data();
             final titulo = data['tituloOriginal'] as String? ?? filtradas[i].id;
+            final tipo = data['tipo'] as String? ?? 'Otro';
             final esAdulto = data['esAdulto'] == true;
             final campos = Map<String, dynamic>.from(data['campos'] ?? {});
 
@@ -370,10 +371,11 @@ class _ObrasTab extends StatelessWidget {
               return texto.isEmpty ? null : texto;
             }
 
-            // Solo lo esencial en la tarjeta: portada, nombre, creador y
-            // estado. El resto de los datos (tipo, género, etc.) se ve al
-            // entrar a la obra.
+            // Tipo siempre primero (para distinguir, por ejemplo, el manhwa
+            // "X" de la novela "X" sin tener que entrar a cada una), seguido
+            // de autor y estado si ya están validados.
             final partesSubtitulo = <String>[
+              tipo,
               if (valorCampo('autor') != null) valorCampo('autor')!,
               if (valorCampo('estado') != null) valorCampo('estado')!,
             ];
@@ -424,11 +426,11 @@ class _ObrasTab extends StatelessWidget {
                     ],
                   ],
                 ),
-                subtitle: partesSubtitulo.isNotEmpty ? Text(partesSubtitulo.join(' · ')) : null,
+                subtitle: Text(partesSubtitulo.join(' · ')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ObraDetalleScreen(titulo: titulo)),
+                  MaterialPageRoute(builder: (_) => ObraDetalleScreen(titulo: titulo, tipo: tipo)),
                 ),
               ),
             );

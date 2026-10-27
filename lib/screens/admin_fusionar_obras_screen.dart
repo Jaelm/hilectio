@@ -17,9 +17,13 @@ class AdminFusionarObrasScreen extends StatefulWidget {
 
 class _AdminFusionarObrasScreenState extends State<AdminFusionarObrasScreen> {
   bool _cargandoTitulos = true;
-  List<String> _titulos = [];
-  String _viejo = '';
-  String _nuevo = '';
+  // Cada opción mostrada es "Título (Tipo)"; este mapa guarda, para cada
+  // texto mostrado, el título y tipo reales que hay que pasarle a
+  // fusionarObras (necesarios desde que el ID de obra es título+tipo).
+  List<String> _opcionesTexto = [];
+  final Map<String, ({String titulo, String tipo})> _porTexto = {};
+  String? _viejoTexto;
+  String? _nuevoTexto;
   bool _fusionando = false;
 
   @override
@@ -31,11 +35,16 @@ class _AdminFusionarObrasScreenState extends State<AdminFusionarObrasScreen> {
   Future<void> _cargarTitulos() async {
     final snap = await FirebaseFirestore.instance.collection('obras').get();
     if (!mounted) return;
+    _porTexto.clear();
+    for (final d in snap.docs) {
+      final data = d.data();
+      final titulo = data['tituloOriginal'] as String? ?? d.id;
+      final tipo = data['tipo'] as String? ?? 'otro';
+      final texto = '$titulo ($tipo)';
+      _porTexto[texto] = (titulo: titulo, tipo: tipo);
+    }
     setState(() {
-      _titulos = snap.docs
-          .map((d) => d.data()['tituloOriginal'] as String? ?? d.id)
-          .toList()
-        ..sort();
+      _opcionesTexto = _porTexto.keys.toList()..sort();
       _cargandoTitulos = false;
     });
   }
@@ -43,22 +52,30 @@ class _AdminFusionarObrasScreenState extends State<AdminFusionarObrasScreen> {
   Iterable<String> _opciones(TextEditingValue valor) {
     if (valor.text.isEmpty) return const Iterable<String>.empty();
     final texto = valor.text.toLowerCase();
-    return _titulos.where((t) => t.toLowerCase().contains(texto));
+    return _opcionesTexto.where((t) => t.toLowerCase().contains(texto));
   }
 
   Future<void> _fusionar() async {
-    final viejo = _viejo.trim();
-    final nuevo = _nuevo.trim();
-    if (viejo.isEmpty || nuevo.isEmpty) return;
+    final viejo = _viejoTexto != null ? _porTexto[_viejoTexto] : null;
+    final nuevo = _nuevoTexto != null ? _porTexto[_nuevoTexto] : null;
+    if (viejo == null || nuevo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Elige ambos títulos de la lista de sugerencias.'),
+        ),
+      );
+      return;
+    }
 
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('¿Fusionar obras?'),
         content: Text(
-          'Todos los resúmenes, votos y propuestas de "$viejo" se van a mover '
-          'a "$nuevo", y se corrige el título guardado en la biblioteca de '
-          'cada usuario que tenga "$viejo". Esto no se puede deshacer.',
+          'Todos los resúmenes, votos y propuestas de "$_viejoTexto" se van a '
+          'mover a "$_nuevoTexto", y se corrige el título guardado en la '
+          'biblioteca de cada usuario que tenga esa obra. Esto no se puede '
+          'deshacer.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
@@ -70,14 +87,19 @@ class _AdminFusionarObrasScreenState extends State<AdminFusionarObrasScreen> {
 
     setState(() => _fusionando = true);
     try {
-      await ObraService().fusionarObras(tituloViejo: viejo, tituloNuevo: nuevo);
+      await ObraService().fusionarObras(
+        tituloViejo: viejo.titulo,
+        tipoViejo: viejo.tipo,
+        tituloNuevo: nuevo.titulo,
+        tipoNuevo: nuevo.tipo,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Obras fusionadas correctamente')),
         );
         setState(() {
-          _viejo = '';
-          _nuevo = '';
+          _viejoTexto = null;
+          _nuevoTexto = null;
         });
         _cargarTitulos();
       }
@@ -102,7 +124,6 @@ class _AdminFusionarObrasScreenState extends State<AdminFusionarObrasScreen> {
           controller: controller,
           focusNode: focusNode,
           decoration: InputDecoration(labelText: etiqueta),
-          onChanged: onChanged,
         );
       },
       optionsViewBuilder: (context, onSelected, options) {
@@ -154,12 +175,12 @@ class _AdminFusionarObrasScreenState extends State<AdminFusionarObrasScreen> {
             else ...[
               _campoConSugerencias(
                 etiqueta: 'Título a eliminar (el que está mal escrito)',
-                onChanged: (v) => _viejo = v,
+                onChanged: (v) => setState(() => _viejoTexto = v),
               ),
               const SizedBox(height: 14),
               _campoConSugerencias(
                 etiqueta: 'Título correcto (al que se migra todo)',
-                onChanged: (v) => _nuevo = v,
+                onChanged: (v) => setState(() => _nuevoTexto = v),
               ),
               const SizedBox(height: 20),
               FilledButton(

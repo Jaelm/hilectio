@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'obra_service.dart' show normalizarTitulo;
+import 'obra_service.dart' show idObra;
 
 class EstadisticaPlataforma {
   final String clave;
@@ -18,7 +18,8 @@ class EstadisticaPlataforma {
 class LecturaDePlataforma {
   final String obraId;
   final String titulo;
-  LecturaDePlataforma(this.obraId, this.titulo);
+  final String tipo;
+  LecturaDePlataforma(this.obraId, this.titulo, this.tipo);
 }
 
 class PlataformasService {
@@ -57,7 +58,7 @@ class PlataformasService {
         usuariosPorClave.putIfAbsent(clave, () => {}).add(uid);
       }
 
-      final obraId = normalizarTitulo(data['titulo'] as String? ?? '');
+      final obraId = idObra(data['titulo'] as String? ?? '', data['tipo'] as String?);
       final combinacion = '$uid|$obraId|$clave';
       if (combinacionesVistas.add(combinacion)) {
         lecturasPorClave[clave] = (lecturasPorClave[clave] ?? 0) + 1;
@@ -86,16 +87,18 @@ class PlataformasService {
         .collectionGroup('lecturas')
         .where('esAdulto', isEqualTo: false)
         .get();
-    final vistos = <String, String>{};
+    final vistos = <String, LecturaDePlataforma>{};
     for (final doc in snap.docs) {
       final data = doc.data();
       final crudo = (data['plataforma'] as String? ?? '').trim();
       if (crudo.isEmpty || crudo.toLowerCase() != clave) continue;
       final titulo = (data['titulo'] as String? ?? '').trim();
       if (titulo.isEmpty) continue;
-      vistos.putIfAbsent(normalizarTitulo(titulo), () => titulo);
+      final tipo = data['tipo'] as String? ?? 'otro';
+      final id = idObra(titulo, tipo);
+      vistos.putIfAbsent(id, () => LecturaDePlataforma(id, titulo, tipo));
     }
-    final lista = vistos.entries.map((e) => LecturaDePlataforma(e.key, e.value)).toList()
+    final lista = vistos.values.toList()
       ..sort((a, b) => a.titulo.toLowerCase().compareTo(b.titulo.toLowerCase()));
     return lista;
   }

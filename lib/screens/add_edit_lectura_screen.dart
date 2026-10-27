@@ -69,7 +69,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
   late TextEditingController _plataformaCtrl;
   late TextEditingController _capituloCtrl;
   late TextEditingController _linkCtrl;
-  late TextEditingController _frecuenciaCtrl;
+  String _diaActualizacion = 'lunes';
   final Map<String, TextEditingController> _obraCtrls = {
     for (final campo in camposObra.keys) campo: TextEditingController(),
   };
@@ -118,7 +118,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
           (widget.tituloInicial != null ? '0' : ''),
     );
     _linkCtrl = TextEditingController(text: l?.link ?? widget.linkInicial ?? '');
-    _frecuenciaCtrl = TextEditingController(text: (l?.frecuenciaDias ?? 7).toString());
+    _diaActualizacion = l?.diaActualizacion ?? 'lunes';
     _tituloFocus.addListener(() {
       if (!_tituloFocus.hasFocus) _cargarCamposBloqueados();
     });
@@ -193,7 +193,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
     if (titulo.isEmpty) return;
     setState(() => _cargandoCamposObra = true);
     try {
-      final campos = await ObraService().obtenerCamposValidados(titulo);
+      final campos = await ObraService().obtenerCamposValidados(titulo, _tipo);
       if (!mounted) return;
       setState(() {
         _camposBloqueados = campos;
@@ -242,7 +242,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       'plataforma': _plataformaCtrl.text.trim(),
       'capituloActual': _capituloCtrl.text.trim(),
       'link': _linkCtrl.text.trim(),
-      'frecuenciaDias': int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
+      'diaActualizacion': _diaActualizacion,
       'esAdulto': _esAdulto,
       'estado': _estadoLectura,
       'actualizadoEn': FieldValue.serverTimestamp(),
@@ -278,7 +278,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
         lecturaId: id,
         titulo: _tituloCtrl.text.trim(),
         fechaBase: DateTime.now(),
-        frecuenciaDias: int.tryParse(_frecuenciaCtrl.text.trim()) ?? 7,
+        diaActualizacion: _diaActualizacion,
       );
 
       final estadoRacha = await TokensService().verificarRacha();
@@ -349,21 +349,25 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       );
       await ObraService().actualizarCapituloMaximo(
         tituloLectura: _tituloCtrl.text.trim(),
+        tipo: _tipo,
         capituloTexto: _capituloCtrl.text.trim(),
         link: _linkCtrl.text.trim(),
       );
 
       // Mi propio "estoy leyendo esto" en la obra (ver ObraDetalleScreen):
-      // si cambié el título, primero se borra la entrada de la obra vieja
-      // para no quedar "leyendo" dos títulos distintos a la vez.
+      // si cambié el título O el tipo, primero se borra la entrada de la
+      // obra vieja para no quedar "leyendo" dos obras distintas a la vez
+      // (recuerda: título+tipo es lo que identifica una obra, ver idObra).
       final tituloAnterior = (datosAnteriores?['titulo'] as String?)?.trim();
+      final tipoAnterior = datosAnteriores?['tipo'] as String?;
       if (tituloAnterior != null &&
           tituloAnterior.isNotEmpty &&
-          normalizarTitulo(tituloAnterior) != normalizarTitulo(_tituloCtrl.text.trim())) {
-        await ObraService().eliminarResumenLector(tituloAnterior);
+          idObra(tituloAnterior, tipoAnterior) != idObra(_tituloCtrl.text.trim(), _tipo)) {
+        await ObraService().eliminarResumenLector(tituloAnterior, tipoAnterior ?? _tipo);
       }
       await ObraService().actualizarResumenLector(
         tituloLectura: _tituloCtrl.text.trim(),
+        tipo: _tipo,
         estado: _estadoLectura,
         plataforma: _plataformaCtrl.text.trim(),
         capituloActual: _capituloCtrl.text.trim(),
@@ -373,6 +377,7 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
       if (valoresObra.values.any((v) => v.trim().isNotEmpty)) {
         final resumenObra = await ObraService().enviarDatosObra(
           tituloLectura: _tituloCtrl.text.trim(),
+          tipo: _tipo,
           valores: valoresObra,
         );
         if (mounted) {
@@ -483,7 +488,13 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                   items: tiposLectura
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
-                  onChanged: (v) => setState(() => _tipo = v ?? 'Manhwa'),
+                  onChanged: (v) {
+                    setState(() => _tipo = v ?? 'Manhwa');
+                    // El tipo es parte de qué obra es (ver idObra): si ya
+                    // hay un título escrito, hay que volver a revisar qué
+                    // campos están validados para esta combinación exacta.
+                    if (_tituloCtrl.text.trim().isNotEmpty) _cargarCamposBloqueados();
+                  },
                 ),
                 const SizedBox(height: 14),
                 Autocomplete<String>(
@@ -525,18 +536,16 @@ class _AddEditLecturaScreenState extends State<AddEditLecturaScreen> {
                   },
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  controller: _frecuenciaCtrl,
+                DropdownButtonFormField<String>(
+                  initialValue: _diaActualizacion,
                   decoration: const InputDecoration(
-                    labelText: 'Cada cuántos días se actualiza',
+                    labelText: 'Día en que se actualiza',
+                    helperText: 'El día de la semana en que normalmente sale el capítulo',
                   ),
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Escribe cada cuántos días';
-                    final n = int.tryParse(v.trim());
-                    if (n == null || n <= 0) return 'Debe ser un número mayor a 0';
-                    return null;
-                  },
+                  items: diasSemana.entries
+                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _diaActualizacion = v ?? 'lunes'),
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(

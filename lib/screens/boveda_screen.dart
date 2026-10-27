@@ -310,6 +310,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
         .update({'estado': nuevoEstado});
     await ObraService().actualizarResumenLector(
       tituloLectura: l.titulo,
+      tipo: l.tipo,
       estado: nuevoEstado,
       plataforma: l.plataforma,
       capituloActual: l.capituloActual,
@@ -393,6 +394,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
     if (cambioCap) {
       await ObraService().actualizarCapituloMaximo(
         tituloLectura: l.titulo,
+        tipo: l.tipo,
         capituloTexto: nuevoCap,
         link: cambioLink ? nuevoLink : l.link,
       );
@@ -404,6 +406,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
     if (cambioCap || cambioLink) {
       await ObraService().actualizarResumenLector(
         tituloLectura: l.titulo,
+        tipo: l.tipo,
         estado: l.estado,
         plataforma: l.plataforma,
         capituloActual: cambioCap ? nuevoCap : l.capituloActual,
@@ -442,7 +445,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
 
   Widget _tarjetaLectura(BuildContext context, String uid, Lectura l) {
     return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance.collection('obras').doc(normalizarTitulo(l.titulo)).get(),
+      future: FirebaseFirestore.instance.collection('obras').doc(idObra(l.titulo, l.tipo)).get(),
       builder: (context, obraSnap) {
         final obraData = (obraSnap.data?.data()) ?? <String, dynamic>{};
         final capituloMaximo = (obraData['capituloMaximo'] as num?)?.toInt();
@@ -453,7 +456,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
         return GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => ObraDetalleScreen(titulo: l.titulo)),
+            MaterialPageRoute(builder: (_) => ObraDetalleScreen(titulo: l.titulo, tipo: l.tipo)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -492,7 +495,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                                   .doc(l.id)
                                   .delete();
                               NotificationService().cancelar(l.id);
-                              ObraService().eliminarResumenLector(l.titulo);
+                              ObraService().eliminarResumenLector(l.titulo, l.tipo);
                             }
                             if (v == 'compartir') _compartirEstado(context, l);
                             if (v == 'resumenes') {
@@ -501,6 +504,7 @@ class _ListaBovedaState extends State<_ListaBoveda> {
                                 MaterialPageRoute(
                                   builder: (_) => ResumenesScreen(
                                     tituloObra: l.titulo,
+                                    tipoObra: l.tipo,
                                     capituloSugerido: l.capituloActual,
                                   ),
                                 ),

@@ -4,16 +4,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/resumenes_service.dart';
 import '../services/logros_service.dart';
-import '../services/obra_service.dart' show normalizarTitulo;
+import '../services/obra_service.dart' show idObra;
 import 'perfil_publico_screen.dart';
 
 class ResumenesScreen extends StatefulWidget {
   final String tituloObra;
+  final String tipoObra;
   final String capituloSugerido;
 
   const ResumenesScreen({
     super.key,
     required this.tituloObra,
+    required this.tipoObra,
     this.capituloSugerido = '',
   });
 
@@ -83,6 +85,7 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
                               try {
                                 final resultado = await _servicio.crearResumen(
                                   tituloObra: widget.tituloObra,
+                                  tipoObra: widget.tipoObra,
                                   capitulo: capituloCtrl.text,
                                   texto: textoCtrl.text,
                                   contieneSpoiler: contieneSpoiler,
@@ -139,11 +142,11 @@ class _ResumenesScreenState extends State<ResumenesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final obraId = normalizarTitulo(widget.tituloObra);
+    final obraId = idObra(widget.tituloObra, widget.tipoObra);
     return Scaffold(
       appBar: AppBar(title: Text('Resúmenes: ${widget.tituloObra}')),
       body: StreamBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
-        stream: _servicio.resumenesDeObra(widget.tituloObra),
+        stream: _servicio.resumenesDeObra(widget.tituloObra, widget.tipoObra),
         builder: (context, snap) {
           final docs = snap.data ?? [];
           if (snap.connectionState == ConnectionState.waiting) {

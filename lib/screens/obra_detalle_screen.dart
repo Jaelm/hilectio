@@ -13,7 +13,8 @@ import 'resumenes_screen.dart';
 /// abandonado/terminado) y un botón de "me gusta".
 class ObraDetalleScreen extends StatefulWidget {
   final String titulo;
-  const ObraDetalleScreen({super.key, required this.titulo});
+  final String tipo;
+  const ObraDetalleScreen({super.key, required this.titulo, required this.tipo});
 
   @override
   State<ObraDetalleScreen> createState() => _ObraDetalleScreenState();
@@ -40,11 +41,11 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
       _error = null;
     });
     try {
-      final obraId = normalizarTitulo(widget.titulo);
+      final obraId = idObra(widget.titulo, widget.tipo);
       final obraSnap =
           await FirebaseFirestore.instance.collection('obras').doc(obraId).get();
-      final lectores = await ObraService().obtenerLectoresDeObra(widget.titulo);
-      final meGusta = await ObraService().yaLeDiLike(widget.titulo);
+      final lectores = await ObraService().obtenerLectoresDeObra(widget.titulo, widget.tipo);
+      final meGusta = await ObraService().yaLeDiLike(widget.titulo, widget.tipo);
       if (!mounted) return;
       final data = obraSnap.data() ?? {};
       setState(() {
@@ -66,7 +67,7 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
   Future<void> _alternarLike() async {
     setState(() => _cambiandoLike = true);
     try {
-      final quedoDado = await ObraService().alternarLike(widget.titulo);
+      final quedoDado = await ObraService().alternarLike(widget.titulo, widget.tipo);
       if (!mounted) return;
       setState(() {
         _meGusta = quedoDado;
@@ -91,7 +92,7 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     final titulo = (_obraData['tituloOriginal'] as String?) ?? widget.titulo;
-    final tipo = _obraData['tipo'] as String?;
+    final tipo = (_obraData['tipo'] as String?) ?? widget.tipo;
 
     final propias = await FirebaseFirestore.instance
         .collection('usuarios')
@@ -100,8 +101,10 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
         .get();
     QueryDocumentSnapshot<Map<String, dynamic>>? existente;
     for (final d in propias.docs) {
-      final t = (d.data()['titulo'] as String? ?? '').trim();
-      if (t.isNotEmpty && normalizarTitulo(t) == normalizarTitulo(titulo)) {
+      final dData = d.data();
+      final t = (dData['titulo'] as String? ?? '').trim();
+      final tTipo = dData['tipo'] as String?;
+      if (t.isNotEmpty && idObra(t, tTipo) == idObra(titulo, tipo)) {
         existente = d;
         break;
       }
@@ -460,7 +463,9 @@ class _ObraDetalleScreenState extends State<ObraDetalleScreen> {
                         child: TextButton.icon(
                           onPressed: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => ResumenesScreen(tituloObra: titulo)),
+                            MaterialPageRoute(
+                              builder: (_) => ResumenesScreen(tituloObra: titulo, tipoObra: widget.tipo),
+                            ),
                           ),
                           icon: const Icon(Icons.forum_outlined),
                           label: const Text('Ver resúmenes de la comunidad'),

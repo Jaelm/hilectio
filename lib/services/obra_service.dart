@@ -35,7 +35,8 @@ const Map<String, String> camposObra = {
   'protagonista': 'Protagonista',
   'autor': 'Autor/Creador',
   'estudioArte': 'Estudio de arte',
-  'estado': 'Estado (En curso / Finalizado)',
+  'demografia': 'Demografía',
+  'estado': 'Estado (En curso / Pausado / Finalizado)',
   'fechaPublicacion': 'Fecha de publicación',
 };
 
@@ -50,7 +51,8 @@ const Set<String> camposMultivaluados = {'genero'};
 /// libre), para que después se puedan usar como filtro confiable en
 /// Descubrir sin depender de cómo cada usuario escribió el valor.
 const Map<String, List<String>> opcionesCampo = {
-  'estado': ['En curso', 'Finalizado'],
+  'estado': ['En curso', 'Pausado', 'Finalizado'],
+  'demografia': ['Seinen', 'Shonen', 'Josei', 'Shojo'],
 };
 
 /// Tipos de lectura disponibles (los mismos que en el formulario de
@@ -65,6 +67,7 @@ const Map<String, int> precioCampoObra = {
   'protagonista': 3,
   'autor': 2,
   'estudioArte': 2,
+  'demografia': 2,
   'estado': 1,
   'fechaPublicacion': 1,
 };
@@ -110,8 +113,10 @@ String etiquetaCampo(String campo, String tipo) {
       return 'Autor/Creador $sufijo';
     case 'estudioArte':
       return 'Estudio de arte $sufijo';
+    case 'demografia':
+      return 'Demografía $sufijo';
     case 'estado':
-      return 'Estado (En curso / Finalizado)';
+      return 'Estado (En curso / Pausado / Finalizado)';
     case 'fechaPublicacion':
       return 'Fecha de publicación $sufijo';
     default:
@@ -160,6 +165,19 @@ dynamic _parsearValorCampo(String campo, String textoCrudo) {
         .toList();
   }
   return textoCrudo.trim();
+}
+
+/// Identificador único de una obra en el catálogo compartido (`obras/{id}`).
+/// Combina título normalizado + tipo porque dos lecturas con el mismo título
+/// pero de tipo distinto (ej. el manhwa "X" y la novela "X") son obras
+/// distintas, no la misma — aunque cuenten la misma historia, tienen
+/// capítulos, lectores y datos propios independientes.
+///
+/// Si [tipo] viene vacío o no reconocido, se usa 'otro' como respaldo en vez
+/// de fallar, para no romper datos viejos que se guardaron sin tipo.
+String idObra(String titulo, String? tipo) {
+  final tipoNormalizado = (tipo == null || tipo.trim().isEmpty) ? 'otro' : normalizarTitulo(tipo);
+  return '${normalizarTitulo(titulo)}__$tipoNormalizado';
 }
 
 String normalizarTitulo(String titulo) {
@@ -237,7 +255,7 @@ class ObraService {
   /// mismo título no la vuelve a poner como segura, para no destapar por
   /// accidente una obra sensible.
   Future<void> registrarObra(String tituloLectura, {String? tipo, bool esAdulto = false}) async {
-    final obraId = normalizarTitulo(tituloLectura);
+    final obraId = idObra(tituloLectura, tipo);
     await _obras.doc(obraId).set(
       {
         'tituloOriginal': tituloLectura.trim(),
@@ -257,12 +275,13 @@ class ObraService {
   /// depender de que alguien lo llene y mantenga actualizado a mano.
   Future<void> actualizarCapituloMaximo({
     required String tituloLectura,
+    required String tipo,
     required String capituloTexto,
     String? link,
   }) async {
     final capitulo = int.tryParse(capituloTexto.trim());
     if (capitulo == null) return;
-    final obraRef = _obras.doc(normalizarTitulo(tituloLectura));
+    final obraRef = _obras.doc(idObra(tituloLectura, tipo));
     await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(obraRef);
       final actual = (snap.data()?['capituloMaximo'] as num?)?.toInt() ?? 0;
@@ -297,7 +316,7 @@ class ObraService {
       final data = doc.data();
       final titulo = (data['titulo'] as String? ?? '').trim();
       if (titulo.isEmpty) continue;
-      final obraId = normalizarTitulo(titulo);
+      final obraId = idObra(titulo, data['tipo'] as String?);
       final info = porObra.putIfAbsent(
         obraId,
         () => {
@@ -351,7 +370,7 @@ class ObraService {
       if (titulo.isEmpty) continue;
       final uid = doc.reference.parent.parent?.id;
       if (uid == null) continue;
-      final obraId = normalizarTitulo(titulo);
+      final obraId = idObra(titulo, data['tipo'] as String?);
       await _obras.doc(obraId).collection('lectores').doc(uid).set({
         'estado': estadosLectura.containsKey(data['estado']) ? data['estado'] : 'leyendo',
         'plataforma': (data['plataforma'] as String? ?? '').trim(),
@@ -373,6 +392,7 @@ class ObraService {
   /// de Firestore protegen esas lecturas de ser leídas por otros usuarios.
   Future<void> actualizarResumenLector({
     required String tituloLectura,
+    required String tipo,
     required String estado,
     required String plataforma,
     required String capituloActual,
@@ -380,7 +400,7 @@ class ObraService {
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final obraId = normalizarTitulo(tituloLectura);
+    final obraId = idObra(tituloLectura, tipo);
     await _obras.doc(obraId).collection('lectores').doc(user.uid).set({
       'estado': estado,
       'plataforma': plataforma.trim(),
@@ -392,10 +412,10 @@ class ObraService {
 
   /// Borra "mi" entrada de `obras/{obraId}/lectores/{uid}` (cuando elimino
   /// esa lectura de mi Biblioteca/Bóveda).
-  Future<void> eliminarResumenLector(String tituloLectura) async {
+  Future<void> eliminarResumenLector(String tituloLectura, String tipo) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final obraId = normalizarTitulo(tituloLectura);
+    final obraId = idObra(tituloLectura, tipo);
     await _obras.doc(obraId).collection('lectores').doc(user.uid).delete();
   }
 
@@ -405,8 +425,8 @@ class ObraService {
   /// las lecturas privadas de otros usuarios (lo cual las reglas de
   /// Firestore no permiten para +18), así que funciona igual para cualquier
   /// obra.
-  Future<List<LectorDeObra>> obtenerLectoresDeObra(String tituloLectura) async {
-    final obraId = normalizarTitulo(tituloLectura);
+  Future<List<LectorDeObra>> obtenerLectoresDeObra(String tituloLectura, String tipo) async {
+    final obraId = idObra(tituloLectura, tipo);
     final snap = await _obras.doc(obraId).collection('lectores').get();
 
     return snap.docs.map((doc) {
@@ -422,10 +442,10 @@ class ObraService {
   }
 
   /// Si el usuario actual ya le dio "me gusta" a esta obra.
-  Future<bool> yaLeDiLike(String tituloLectura) async {
+  Future<bool> yaLeDiLike(String tituloLectura, String tipo) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
-    final obraId = normalizarTitulo(tituloLectura);
+    final obraId = idObra(tituloLectura, tipo);
     final doc = await _obras.doc(obraId).collection('likes').doc(user.uid).get();
     return doc.exists;
   }
@@ -434,9 +454,9 @@ class ObraService {
   /// `likes` del documento de la obra se recalcula dentro de la misma
   /// transacción a partir de su valor guardado +1/-1, nunca contando toda
   /// la subcolección de nuevo (sería caro). Devuelve true si quedó "dado".
-  Future<bool> alternarLike(String tituloLectura) async {
+  Future<bool> alternarLike(String tituloLectura, String tipo) async {
     final user = FirebaseAuth.instance.currentUser!;
-    final obraId = normalizarTitulo(tituloLectura);
+    final obraId = idObra(tituloLectura, tipo);
     final obraRef = _obras.doc(obraId);
     final likeRef = obraRef.collection('likes').doc(user.uid);
 
@@ -459,8 +479,8 @@ class ObraService {
 
   /// Campos de esta obra ya validados por el admin (campo -> valor).
   /// Úsalo para bloquear en el formulario los campos que ya tienen dato correcto.
-  Future<Map<String, dynamic>> obtenerCamposValidados(String tituloLectura) async {
-    final obraId = normalizarTitulo(tituloLectura);
+  Future<Map<String, dynamic>> obtenerCamposValidados(String tituloLectura, String tipo) async {
+    final obraId = idObra(tituloLectura, tipo);
     final snap = await _obras.doc(obraId).get();
     final data = snap.data() ?? {};
     final campos = Map<String, dynamic>.from(data['campos'] ?? {});
@@ -478,9 +498,10 @@ class ObraService {
   /// estaban ya bloqueados por [obtenerCamposValidados]).
   Future<Map<String, int>> enviarDatosObra({
     required String tituloLectura,
+    required String tipo,
     required Map<String, String> valores,
   }) async {
-    final obraId = normalizarTitulo(tituloLectura);
+    final obraId = idObra(tituloLectura, tipo);
     final obraRef = _obras.doc(obraId);
     final user = FirebaseAuth.instance.currentUser!;
     final tituloObra = tituloLectura.trim();
@@ -717,10 +738,12 @@ class ObraService {
   /// correr sin duplicar lo que ya se alcanzó a mover.
   Future<void> fusionarObras({
     required String tituloViejo,
+    required String tipoViejo,
     required String tituloNuevo,
+    required String tipoNuevo,
   }) async {
-    final idViejo = normalizarTitulo(tituloViejo);
-    final idNuevo = normalizarTitulo(tituloNuevo);
+    final idViejo = idObra(tituloViejo, tipoViejo);
+    final idNuevo = idObra(tituloNuevo, tipoNuevo);
     if (idViejo == idNuevo) {
       throw Exception('Esos dos títulos ya apuntan a la misma obra.');
     }
@@ -789,8 +812,10 @@ class ObraService {
     // la obra vieja la próxima vez que la edite/guarde).
     final todasLasLecturas = await FirebaseFirestore.instance.collectionGroup('lecturas').get();
     for (final doc in todasLasLecturas.docs) {
-      final tituloLectura = (doc.data()['titulo'] as String? ?? '').trim();
-      if (tituloLectura.isNotEmpty && normalizarTitulo(tituloLectura) == idViejo) {
+      final data = doc.data();
+      final tituloLectura = (data['titulo'] as String? ?? '').trim();
+      final tipoLectura = data['tipo'] as String?;
+      if (tituloLectura.isNotEmpty && idObra(tituloLectura, tipoLectura) == idViejo) {
         await doc.reference.update({'titulo': tituloNuevo.trim()});
       }
     }

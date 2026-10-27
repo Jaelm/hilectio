@@ -84,7 +84,7 @@ class _PlataformaDetalleScreenState extends State<PlataformaDetalleScreen> {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ResumenesScreen(tituloObra: l.titulo),
+                                  builder: (_) => ResumenesScreen(tituloObra: l.titulo, tipoObra: l.tipo),
                                 ),
                               ),
                             ),

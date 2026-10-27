@@ -33,7 +33,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
     }
   }
 
-  Future<void> _eliminar(String uid, String id, String titulo) async {
+  Future<void> _eliminar(String uid, String id, String titulo, String tipo) async {
     await FirebaseFirestore.instance
         .collection('usuarios')
         .doc(uid)
@@ -41,7 +41,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
         .doc(id)
         .delete();
     await NotificationService().cancelar(id);
-    await ObraService().eliminarResumenLector(titulo);
+    await ObraService().eliminarResumenLector(titulo, tipo);
   }
 
   Future<void> _cambiarEstado(String uid, String id, String nuevoEstado, Lectura l) async {
@@ -53,6 +53,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
         .update({'estado': nuevoEstado});
     await ObraService().actualizarResumenLector(
       tituloLectura: l.titulo,
+      tipo: l.tipo,
       estado: nuevoEstado,
       plataforma: l.plataforma,
       capituloActual: l.capituloActual,
@@ -123,6 +124,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
     if (cambioCap) {
       await ObraService().actualizarCapituloMaximo(
         tituloLectura: l.titulo,
+        tipo: l.tipo,
         capituloTexto: nuevoCap,
         link: cambioLink ? nuevoLink : l.link,
       );
@@ -134,6 +136,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
     if (cambioCap || cambioLink) {
       await ObraService().actualizarResumenLector(
         tituloLectura: l.titulo,
+        tipo: l.tipo,
         estado: l.estado,
         plataforma: l.plataforma,
         capituloActual: cambioCap ? nuevoCap : l.capituloActual,
@@ -186,7 +189,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
 
   Widget _tarjetaLectura(BuildContext context, String uid, Lectura l) {
     return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance.collection('obras').doc(normalizarTitulo(l.titulo)).get(),
+      future: FirebaseFirestore.instance.collection('obras').doc(idObra(l.titulo, l.tipo)).get(),
       builder: (context, obraSnap) {
         final obraData = (obraSnap.data?.data()) ?? <String, dynamic>{};
         // El "total" se calcula solo: es el capítulo más avanzado que
@@ -228,7 +231,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                                 MaterialPageRoute(builder: (_) => AddEditLecturaScreen(lectura: l)),
                               );
                             }
-                            if (v == 'eliminar') _eliminar(uid, l.id, l.titulo);
+                            if (v == 'eliminar') _eliminar(uid, l.id, l.titulo, l.tipo);
                             if (v == 'compartir') _compartirEstado(context, l);
                             if (v == 'resumenes') {
                               Navigator.push(
@@ -236,6 +239,7 @@ class _BibliotecaScreenState extends State<BibliotecaScreen> {
                                 MaterialPageRoute(
                                   builder: (_) => ResumenesScreen(
                                     tituloObra: l.titulo,
+                                    tipoObra: l.tipo,
                                     capituloSugerido: l.capituloActual,
                                   ),
                                 ),

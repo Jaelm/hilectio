@@ -8,8 +8,12 @@ enum TipoCofre { normal, raro, legendario }
 enum Pool { titulos, fotos }
 
 /// Las "fotos de perfil" que salen de los cofres son nombres simbólicos
-/// (no imágenes reales), así que se representan con un ícono.
+/// (no imágenes reales), así que se representan con un ícono. Los nombres
+/// están inspirados en tropos comunes de manhwa/manga/novelas (mazmorras,
+/// regresores, sistemas, nigromantes...) para que se sientan conectados con
+/// lo que la gente lee, sin usar ningún personaje o arte real de por medio.
 const Map<String, IconData> iconosFoto = {
+  // --- Originales ---
   'Hoja': Icons.eco,
   'Pluma': Icons.edit_outlined,
   'Taza': Icons.local_cafe,
@@ -20,6 +24,62 @@ const Map<String, IconData> iconosFoto = {
   'Corona': Icons.workspace_premium,
   'Dragón': Icons.whatshot,
   'Fénix': Icons.auto_awesome,
+
+  // --- Nuevas: comunes ---
+  'Mazmorra': Icons.terrain,
+  'Academia': Icons.school,
+  'Gremio': Icons.account_tree,
+  'Pergamino': Icons.menu_book,
+  'Tomo': Icons.auto_stories,
+  'Lente': Icons.chrome_reader_mode,
+  'Poción': Icons.science,
+  'Antorcha': Icons.wb_incandescent,
+  'Brújula': Icons.explore,
+  'Mapa': Icons.map,
+  'Llave': Icons.key,
+  'Candado': Icons.lock,
+  'Escudo': Icons.shield,
+  'Guardia': Icons.security,
+  'Bosque': Icons.forest,
+  'Jardín': Icons.local_florist,
+  'Loto': Icons.spa,
+  'Hierba Espiritual': Icons.grass,
+  'Fideos Instantáneos': Icons.ramen_dining,
+  'Máscara': Icons.theater_comedy,
+  'Runas': Icons.change_history,
+  'Reliquia': Icons.diamond,
+  'Vendaje': Icons.healing,
+  'Corazón Roto': Icons.favorite,
+  'Niebla': Icons.blur_on,
+
+  // --- Nuevas: raras ---
+  'Nigromante': Icons.dark_mode,
+  'Alquimista': Icons.biotech,
+  'Regresor': Icons.timelapse,
+  'Sistema': Icons.psychology,
+  'Cazador': Icons.gps_fixed,
+  'Arquera': Icons.track_changes,
+  'Espadachín': Icons.sports_martial_arts,
+  'Monje de Combate': Icons.sports_mma,
+  'Bestia': Icons.pets,
+  'Tormenta': Icons.cyclone,
+  'Marea': Icons.waves,
+  'Ancla': Icons.anchor,
+  'Navegante': Icons.sailing,
+  'Hielo Eterno': Icons.ac_unit,
+  'Gota Carmesí': Icons.water_drop,
+
+  // --- Nuevas: legendarias ---
+  'Trono': Icons.emoji_events,
+  'Juez del Abismo': Icons.gavel,
+  'Ojo Arcano': Icons.visibility,
+  'Sombra Oculta': Icons.visibility_off,
+  'Castillo Celestial': Icons.castle,
+  'Sello Supremo': Icons.vpn_key,
+  'Rango S': Icons.military_tech,
+  'Eternidad': Icons.all_inclusive,
+  'Luna de Sangre': Icons.brightness_3,
+  'Soberano': Icons.auto_fix_high,
 };
 
 class CofresService {
@@ -105,9 +165,25 @@ class CofresService {
       ],
     },
     Pool.fotos: {
-      'comun': ['Hoja', 'Pluma', 'Taza', 'Luna', 'Estrella'],
-      'raro': ['Fuego', 'Rayo', 'Corona'],
-      'legendario': ['Dragón', 'Fénix'],
+      'comun': [
+        'Hoja', 'Pluma', 'Taza', 'Luna', 'Estrella',
+        'Mazmorra', 'Academia', 'Gremio', 'Pergamino', 'Tomo',
+        'Lente', 'Poción', 'Antorcha', 'Brújula', 'Mapa',
+        'Llave', 'Candado', 'Escudo', 'Guardia', 'Bosque',
+        'Jardín', 'Loto', 'Hierba Espiritual', 'Fideos Instantáneos', 'Máscara',
+        'Runas', 'Reliquia', 'Vendaje', 'Corazón Roto', 'Niebla',
+      ],
+      'raro': [
+        'Fuego', 'Rayo', 'Corona',
+        'Nigromante', 'Alquimista', 'Regresor', 'Sistema', 'Cazador',
+        'Arquera', 'Espadachín', 'Monje de Combate', 'Bestia', 'Tormenta',
+        'Marea', 'Ancla', 'Navegante', 'Hielo Eterno', 'Gota Carmesí',
+      ],
+      'legendario': [
+        'Dragón', 'Fénix',
+        'Trono', 'Juez del Abismo', 'Ojo Arcano', 'Sombra Oculta', 'Castillo Celestial',
+        'Sello Supremo', 'Rango S', 'Eternidad', 'Luna de Sangre', 'Soberano',
+      ],
     },
   };
 

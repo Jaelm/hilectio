@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'tokens_service.dart';
 import 'logros_service.dart';
-import 'obra_service.dart' show normalizarTitulo;
+import 'obra_service.dart' show idObra;
 
 const int tokensPorVoto = 1;
 const int penalizacionViolacion = 10;
@@ -66,11 +66,12 @@ class ResumenesService {
   /// `logrosDesbloqueados` (títulos secretos recién ganados, si aplica).
   Future<Map<String, dynamic>> crearResumen({
     required String tituloObra,
+    required String tipoObra,
     required String capitulo,
     required String texto,
     required bool contieneSpoiler,
   }) async {
-    final obraId = normalizarTitulo(tituloObra);
+    final obraId = idObra(tituloObra, tipoObra);
     final user = FirebaseAuth.instance.currentUser!;
     final capNormalizado = _normalizarCapitulo(capitulo);
     if (capNormalizado.isEmpty) {
@@ -108,8 +109,11 @@ class ResumenesService {
   }
 
   /// Resúmenes publicados de una obra, mejor valorados primero.
-  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> resumenesDeObra(String tituloObra) {
-    final obraId = normalizarTitulo(tituloObra);
+  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> resumenesDeObra(
+    String tituloObra,
+    String tipoObra,
+  ) {
+    final obraId = idObra(tituloObra, tipoObra);
     return _resumenes(obraId)
         .where('estado', isEqualTo: 'activo')
         .orderBy('votosPositivos', descending: true)

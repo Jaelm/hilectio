@@ -241,7 +241,7 @@ class CuestionarioService {
     for (final d in snap.docs) {
       final l = Lectura.fromDoc(d);
       if (l.estado != 'leyendo' && l.estado != 'terminado') continue;
-      porObra.putIfAbsent(normalizarTitulo(l.titulo), () => l);
+      porObra.putIfAbsent(idObra(l.titulo, l.tipo), () => l);
     }
     final lista = porObra.values.toList()..shuffle();
     return lista;
@@ -422,7 +422,7 @@ class CuestionarioService {
     final candidatas = <_CandidataObra>[];
     for (final l in elegibles) {
       if (candidatas.length >= maxNecesarias) break;
-      final obraId = normalizarTitulo(l.titulo);
+      final obraId = idObra(l.titulo, l.tipo);
       final snap = await FirebaseFirestore.instance.collection('obras').doc(obraId).get();
       final data = snap.data();
       if (data == null) continue;

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'obra_service.dart' show normalizarTitulo;
+import 'obra_service.dart' show idObra;
 
 /// Catálogo de los 20 títulos/logros ocultos de Hilectio. La clave es el id
 /// interno (se guarda en `logrosDesbloqueados` del usuario); el valor es el
@@ -361,7 +361,8 @@ class LogrosService {
 
       final titulo = (d['titulo'] ?? '').toString();
       if (titulo.isNotEmpty) {
-        final obraId = normalizarTitulo(titulo);
+        final tipoLectura = (d['tipo'] ?? 'otro').toString();
+        final obraId = idObra(titulo, tipoLectura);
         Set<String> generos;
         if (generosCache.containsKey(obraId)) {
           generos = generosCache[obraId]!;
